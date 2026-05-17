@@ -1,0 +1,1845 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام تحليل وتقييم أداء الموظفين</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS for Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Cairo', 'sans-serif'] },
+                    colors: {
+                        primary: '#1e3a8a',
+                        secondary: '#3b82f6',
+                        accent: '#10b981',
+                        danger: '#ef4444',
+                        warning: '#f59e0b',
+                        dark: '#0f172a',
+                        light: '#f8fafc'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Cairo', sans-serif; background-color: #f1f5f9; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .glass-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+        
+        #uploadOverlay { transition: all 0.3s ease; }
+    </style>
+</head>
+<body class="text-slate-800 h-screen flex overflow-hidden">
+
+    <!-- Upload Screen Overlay -->
+    <div id="uploadOverlay" class="fixed inset-0 z-50 bg-slate-900 bg-opacity-95 flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white p-10 rounded-2xl shadow-2xl text-center max-w-lg w-full transform transition-all">
+            <div class="w-24 h-24 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i class="fas fa-file-excel text-4xl"></i>
+            </div>
+            <h2 class="text-3xl font-bold text-slate-800 mb-2">أهلاً بك في نظام التقييم</h2>
+            <p class="text-slate-500 mb-8">يرجى رفع ملف الإكسيل الذي يحتوي على شيت EVALUTION وشيت KPI's للبدء في التحليل.</p>
+            
+            <label class="cursor-pointer group block">
+                <div class="border-2 border-dashed border-blue-300 rounded-xl p-8 bg-blue-50 group-hover:bg-blue-100 transition duration-300">
+                    <i class="fas fa-cloud-upload-alt text-3xl text-blue-500 mb-3 group-hover:scale-110 transition-transform"></i>
+                    <p class="text-lg font-semibold text-blue-700">اضغط هنا لاختيار الملف</p>
+                    <p class="text-sm text-blue-500 mt-1">.xlsx, .xls</p>
+                </div>
+                <input type="file" id="excelFile" class="hidden" accept=".xlsx, .xls" />
+            </label>
+        </div>
+    </div>
+
+    <!-- Sidebar Navigation -->
+    <nav class="w-64 bg-dark text-white flex flex-col shadow-2xl z-10 flex-shrink-0 relative h-full overflow-y-auto">
+        <div class="p-6 border-b border-slate-700 flex items-center gap-3 sticky top-0 bg-dark z-20">
+            <i class="fas fa-chart-pie text-2xl text-secondary"></i>
+            <h1 class="text-xl font-bold">لوحة التحليل</h1>
+        </div>
+        <div class="flex-1 py-6 px-4 space-y-2">
+            <button onclick="switchTab('dashboard')" class="tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-right transition-colors bg-secondary text-white font-semibold" data-tab="dashboard">
+                <i class="fas fa-home w-5"></i> نظرة عامة
+            </button>
+            <button onclick="switchTab('axesAnalysis')" class="tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-right" data-tab="axesAnalysis">
+                <i class="fas fa-layer-group w-5 text-purple-400"></i> تحليل المحاور الشامل
+            </button>
+            <button onclick="switchTab('filters')" class="tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-right" data-tab="filters">
+                <i class="fas fa-filter w-5"></i> فلتر متقدم (المحاور والمبيعات)
+            </button>
+            <button onclick="switchTab('employees')" class="tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-right" data-tab="employees">
+                <i class="fas fa-users w-5"></i> قاعدة البائعين والبحث
+            </button>
+            <button onclick="switchTab('kpi')" class="tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-right" data-tab="kpi">
+                <i class="fas fa-bullseye w-5"></i> تحليل الـ KPI's الفعلي
+            </button>
+            <button onclick="switchTab('comparison')" class="tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-right" data-tab="comparison">
+                <i class="fas fa-balance-scale w-5"></i> مقارنة الفترات (سابق/حالي)
+            </button>
+            <button onclick="switchTab('evaluators')" class="tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-right" data-tab="evaluators">
+                <i class="fas fa-user-tie w-5"></i> تقييم الزوار (المُقيِّمين)
+            </button>
+            <button onclick="switchTab('excluded')" class="tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-red-900 hover:text-white transition-colors text-right" data-tab="excluded">
+                <i class="fas fa-user-slash w-5 text-red-400"></i> المستبعدين
+            </button>
+        </div>
+        <div class="p-4 border-t border-slate-700 text-xs text-center text-slate-500 mt-auto">
+            تم التطوير بواسطة فريق التدريب والتطوير فى درعه
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 relative">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b px-8 py-4 flex justify-between items-center flex-shrink-0 z-10">
+            <h2 id="currentTabTitle" class="text-2xl font-bold text-slate-800">نظرة عامة</h2>
+            <div class="flex items-center gap-4">
+                <span id="dataStatus" class="text-sm font-semibold bg-red-100 text-red-600 px-3 py-1 rounded-full"><i class="fas fa-times-circle ml-1"></i> لا يوجد بيانات</span>
+                <button onclick="location.reload()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-sync-alt"></i></button>
+            </div>
+        </header>
+
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-auto p-6 md:p-8">
+            
+            <!-- TAB: Dashboard -->
+            <div id="dashboard" class="tab-content active space-y-6">
+                <!-- Dashboard content remains the same -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div class="glass-panel p-6 rounded-xl border-t-4 border-secondary text-center">
+                        <p class="text-sm text-slate-500 font-semibold mb-1">إجمالي الموظفين (Active)</p>
+                        <h3 class="text-4xl font-bold text-slate-800" id="stat-total">-</h3>
+                    </div>
+                    <div class="glass-panel p-6 rounded-xl border-t-4 border-accent text-center">
+                        <p class="text-sm text-slate-500 font-semibold mb-1">متوسط تحقيق الأهداف</p>
+                        <h3 class="text-4xl font-bold text-accent" id="stat-achieve">-</h3>
+                    </div>
+                    <div class="glass-panel p-6 rounded-xl border-t-4 border-warning text-center">
+                        <p class="text-sm text-slate-500 font-semibold mb-1">عدد الأقاليم</p>
+                        <h3 class="text-4xl font-bold text-slate-800" id="stat-regions">-</h3>
+                    </div>
+                    <div class="glass-panel p-6 rounded-xl border-t-4 border-danger text-center">
+                        <p class="text-sm text-slate-500 font-semibold mb-1">متوسط تقييم المدير</p>
+                        <h3 class="text-4xl font-bold text-danger" id="stat-manager">-</h3>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="glass-panel p-6 rounded-xl flex flex-col">
+                        <h3 class="font-bold text-lg mb-4 text-slate-700">تحقيق الأهداف حسب الإقليم</h3>
+                        <div class="flex-1 relative h-80">
+                            <canvas id="regionChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="glass-panel p-6 rounded-xl flex flex-col">
+                        <h3 class="font-bold text-lg mb-4 text-slate-700">توزيع الجنسيات</h3>
+                        <div class="flex-1 relative h-80">
+                            <canvas id="nationalityChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="glass-panel p-6 rounded-xl flex flex-col col-span-1 h-96 overflow-y-auto">
+                        <h3 class="font-bold text-lg mb-4 text-slate-700 sticky top-0 bg-white z-10 pb-2 border-b">جدول الجنسيات</h3>
+                        <table class="w-full text-right border-collapse">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th class="p-2 border-b text-slate-600 text-sm">الجنسية</th>
+                                    <th class="p-2 border-b text-slate-600 text-sm">عدد الموظفين</th>
+                                </tr>
+                            </thead>
+                            <tbody id="natTableBody" class="text-sm">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="glass-panel p-6 rounded-xl flex flex-col col-span-1 lg:col-span-2">
+                        <h3 class="font-bold text-lg mb-4 text-slate-700">ترتيب الأقاليم (من الأفضل للأسوأ حسب التقييم)</h3>
+                        <div class="flex-1 relative h-80">
+                            <canvas id="regionRankChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: Axes Analysis -->
+            <div id="axesAnalysis" class="tab-content space-y-6">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-6">
+                    <h3 class="text-xl font-bold text-slate-800 mb-2"><i class="fas fa-layer-group text-purple-600 mr-2"></i> تحليل المحاور الشامل</h3>
+                    <p class="text-sm text-slate-500">يعرض هذا القسم كل محور من محاور التقييم مع النصوص الرسمية للتقييم والأوزان النسبية لكل مستوى بناءً على مصفوفة التقييم المعتمدة.</p>
+                </div>
+                
+                <!-- Container for all axes -->
+                <div id="axesAnalysisContainer" class="space-y-6">
+                    <!-- Populated dynamically by JS -->
+                </div>
+            </div>
+
+            <!-- TAB: Filters -->
+            <div id="filters" class="tab-content space-y-6">
+                <!-- Filters content remains the same -->
+                 <div class="glass-panel p-6 rounded-xl">
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h3 class="text-xl font-bold text-slate-800">تصفية متقدمة شاملة</h3>
+                            <p class="text-sm text-slate-500">فلترة الموظفين بناءً على التعليقات، الديموغرافيا، ومؤشرات الأداء (KPIs).</p>
+                        </div>
+                        <button onclick="exportFiltered()" class="bg-accent hover:bg-green-600 text-white px-5 py-2 rounded-lg font-semibold transition-colors shadow-md">
+                            <i class="fas fa-file-excel mr-2"></i> تصدير النتائج
+                        </button>
+                    </div>
+
+                    <!-- Demographic Filters -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">الإقليم</label>
+                            <select id="advFilterRegion" class="w-full border rounded p-2 text-sm outline-none focus:border-secondary"><option value="">الكل</option></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">الجنسية</label>
+                            <select id="advFilterNat" class="w-full border rounded p-2 text-sm outline-none focus:border-secondary"><option value="">الكل</option></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">الخبرة</label>
+                            <select id="advFilterExp" class="w-full border rounded p-2 text-sm outline-none focus:border-secondary"><option value="">الكل</option></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">تطور الأداء (مقارنة بالسابق)</label>
+                            <select id="advFilterPerf" class="w-full border rounded p-2 text-sm outline-none focus:border-secondary">
+                                <option value="">الكل</option>
+                                <option value="declined">المتراجعون فقط</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- KPI Filters -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">نسبة التحقيق أكبر من (%)</label>
+                            <input type="number" id="advFilterAchieve" class="w-full border rounded p-2 text-sm outline-none" placeholder="مثال: 80">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">المبيعات أكبر من</label>
+                            <input type="number" id="advFilterSales" class="w-full border rounded p-2 text-sm outline-none" placeholder="مثال: 50000">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">عدد الفواتير أكبر من</label>
+                            <input type="number" id="advFilterBills" class="w-full border rounded p-2 text-sm outline-none" placeholder="مثال: 100">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">عدد القطع أكبر من</label>
+                            <input type="number" id="advFilterItems" class="w-full border rounded p-2 text-sm outline-none" placeholder="مثال: 200">
+                        </div>
+                    </div>
+                    
+                    <h4 class="font-bold text-slate-700 mb-3 border-b pb-2">فلاتر محاور التقييم (اختر المستويات المطلوبة)</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4" id="filterAxesContainer">
+                        <!-- Filter checkboxes will be generated here -->
+                    </div>
+                    
+                    <div class="mt-6 flex gap-3">
+                        <button onclick="applyFilters()" class="bg-primary hover:bg-blue-800 text-white px-8 py-2 rounded-lg font-bold transition-colors shadow-md">
+                            <i class="fas fa-filter mr-2"></i> تطبيق الفلاتر
+                        </button>
+                        <button onclick="resetFilters()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-6 py-2 rounded-lg font-bold transition-colors">
+                            مسح الكل
+                        </button>
+                    </div>
+                </div>
+
+                <div class="glass-panel p-6 rounded-xl">
+                    <h3 class="font-bold text-lg mb-4 text-slate-700">النتائج (<span id="filterResultCount">0</span> بائع)</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-right border-collapse">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-600 text-sm">
+                                    <th class="p-3 border-b">الرقم الوظيفي</th>
+                                    <th class="p-3 border-b">الاسم</th>
+                                    <th class="p-3 border-b">الإقليم</th>
+                                    <th class="p-3 border-b">التقييم العام</th>
+                                    <th class="p-3 border-b text-center">عرض الملف</th>
+                                </tr>
+                            </thead>
+                            <tbody id="filterResultsTable" class="text-sm">
+                                <tr><td colspan="5" class="text-center p-6 text-slate-400">قم بتطبيق الفلتر لعرض النتائج</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: Employees -->
+            <div id="employees" class="tab-content space-y-6">
+                <!-- Employees content remains the same -->
+                <div class="glass-panel p-6 rounded-xl">
+                    <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
+                        <div class="relative w-full md:w-96">
+                            <i class="fas fa-search absolute right-3 top-3 text-slate-400"></i>
+                            <input type="text" id="empSearch" placeholder="ابحث بالاسم، الرقم الوظيفي..." class="w-full pl-4 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-secondary outline-none transition-all" onkeyup="searchEmployees()">
+                        </div>
+                        <div class="flex gap-2">
+                             <select id="empRegionFilter" onchange="searchEmployees()" class="border border-slate-300 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-secondary">
+                                <option value="">كل الأقاليم</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto h-[600px] overflow-y-auto relative border rounded-lg">
+                        <table class="w-full text-right border-collapse relative">
+                            <thead class="sticky top-0 bg-slate-100 z-10 shadow-sm">
+                                <tr class="text-slate-600 text-sm">
+                                    <th class="p-3 border-b">الرقم</th>
+                                    <th class="p-3 border-b">الاسم</th>
+                                    <th class="p-3 border-b">الجنسية</th>
+                                    <th class="p-3 border-b">الإقليم</th>
+                                    <th class="p-3 border-b text-center">تقييم المدير</th>
+                                    <th class="p-3 border-b text-center">KPI كلي</th>
+                                    <th class="p-3 border-b text-center">الإجراء</th>
+                                </tr>
+                            </thead>
+                            <tbody id="employeesTable" class="text-sm">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: KPI -->
+            <div id="kpi" class="tab-content space-y-6">
+                <!-- KPI content remains the same -->
+                 <div class="glass-panel p-6 rounded-xl">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                        <h3 class="text-xl font-bold text-slate-800">تحليل المبيعات الفعلي و KPI's</h3>
+                        <div class="flex flex-wrap gap-3 items-center">
+                            <div class="relative w-full md:w-auto">
+                                <i class="fas fa-search absolute right-3 top-3 text-slate-400"></i>
+                                <input type="text" id="kpiSearch" placeholder="بحث بالاسم أو الرقم..." class="w-full md:w-56 pl-4 pr-10 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-secondary" onkeyup="renderKPITable()">
+                            </div>
+                            <button onclick="exportKPI()" class="bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-700 font-bold shadow-md w-full md:w-auto"><i class="fas fa-download mr-1"></i> تصدير البيانات</button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6 bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-700 mb-1">نسبة التحقيق ></label>
+                            <input type="number" id="kpiTabFilterAchieve" onkeyup="renderKPITable()" onchange="renderKPITable()" class="w-full border rounded p-1.5 text-sm outline-none" placeholder="80%">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-700 mb-1">المبيعات ></label>
+                            <input type="number" id="kpiTabFilterSales" onkeyup="renderKPITable()" onchange="renderKPITable()" class="w-full border rounded p-1.5 text-sm outline-none" placeholder="50000">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-700 mb-1">عدد الفواتير ></label>
+                            <input type="number" id="kpiTabFilterBills" onkeyup="renderKPITable()" onchange="renderKPITable()" class="w-full border rounded p-1.5 text-sm outline-none" placeholder="100">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-700 mb-1">عدد القطع ></label>
+                            <input type="number" id="kpiTabFilterItems" onkeyup="renderKPITable()" onchange="renderKPITable()" class="w-full border rounded p-1.5 text-sm outline-none" placeholder="200">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-700 mb-1">م. الفاتورة ></label>
+                            <input type="number" id="kpiTabFilterAvgBill" onkeyup="renderKPITable()" onchange="renderKPITable()" class="w-full border rounded p-1.5 text-sm outline-none" placeholder="500">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-700 mb-1">م. القطعة ></label>
+                            <input type="number" id="kpiTabFilterAvgItem" onkeyup="renderKPITable()" onchange="renderKPITable()" class="w-full border rounded p-1.5 text-sm outline-none" placeholder="100">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-700 mb-1">KPI إجمالي ></label>
+                            <input type="number" id="kpiTabFilterTotalKPI" onkeyup="renderKPITable()" onchange="renderKPITable()" class="w-full border rounded p-1.5 text-sm outline-none" placeholder="80%">
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto border rounded-lg max-h-[500px] overflow-y-auto">
+                        <table class="w-full text-right border-collapse">
+                            <thead class="sticky top-0 bg-slate-100 z-10">
+                                <tr class="text-slate-600 text-xs">
+                                    <th class="p-3 border-b">الاسم</th>
+                                    <th class="p-3 border-b">الهدف</th>
+                                    <th class="p-3 border-b">المبيعات الفعلية</th>
+                                    <th class="p-3 border-b">نسبة التحقيق</th>
+                                    <th class="p-3 border-b">عدد الفواتير</th>
+                                    <th class="p-3 border-b">عدد القطع</th>
+                                    <th class="p-3 border-b">متوسط الفاتورة</th>
+                                    <th class="p-3 border-b">متوسط القطعة</th>
+                                    <th class="p-3 border-b bg-blue-100">KPI إجمالي</th>
+                                </tr>
+                            </thead>
+                            <tbody id="kpiTable" class="text-sm">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: Comparison -->
+            <div id="comparison" class="tab-content space-y-6">
+                 <!-- Comparison content remains the same -->
+                 <div class="glass-panel p-6 rounded-xl">
+                    <div class="flex flex-col lg:flex-row justify-between items-center gap-4 mb-6">
+                        <div>
+                            <h3 class="text-xl font-bold text-slate-800">مقارنة التقييم (JAN 2026 vs JUL 2025)</h3>
+                            <p class="text-sm text-slate-500">اكتشاف البائعين الذين انخفض مستواهم بشكل ملحوظ.</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-3">
+                            <div class="relative w-full md:w-auto">
+                                <i class="fas fa-search absolute right-3 top-3 text-slate-400"></i>
+                                <input type="text" id="compSearch" placeholder="بحث بالاسم أو الرقم..." class="w-full md:w-48 pl-4 pr-10 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-secondary" onkeyup="renderComparisonTable()">
+                            </div>
+                            <label class="font-semibold text-slate-700 hidden md:block">تراجع بنسبة أكبر من:</label>
+                            <select id="dropFilter" onchange="renderComparisonTable()" class="w-full md:w-auto border border-slate-300 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-danger text-danger font-bold">
+                                <option value="all">عرض الكل</option>
+                                <option value="0">أي تراجع (< 0)</option>
+                                <option value="5">أكثر من 5%</option>
+                                <option value="10">أكثر من 10%</option>
+                                <option value="20">أكثر من 20%</option>
+                            </select>
+                            <button onclick="exportComparison()" class="w-full md:w-auto bg-accent hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors font-bold shadow-md"><i class="fas fa-file-excel mr-1"></i> تصدير</button>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto border rounded-lg max-h-[600px] overflow-y-auto">
+                        <table class="w-full text-right border-collapse">
+                            <thead class="sticky top-0 bg-slate-100 z-10">
+                                <tr class="text-slate-600 text-sm">
+                                    <th class="p-3 border-b">الاسم</th>
+                                    <th class="p-3 border-b text-center">تقييم JUL 2025</th>
+                                    <th class="p-3 border-b text-center">تقييم JAN 2026</th>
+                                    <th class="p-3 border-b text-center">مقدار التغير</th>
+                                </tr>
+                            </thead>
+                            <tbody id="comparisonTable" class="text-sm">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: Evaluators -->
+            <div id="evaluators" class="tab-content space-y-6">
+                <!-- Evaluators content remains the same -->
+                <div class="glass-panel p-6 rounded-xl">
+                    <div class="flex justify-between items-center mb-6 border-b pb-4">
+                        <div>
+                            <h3 class="text-xl font-bold text-slate-800">تحليل أداء الزوار (المُقيِّمين)</h3>
+                            <p class="text-sm text-slate-500">تحليل جودة وتوزيع التقييمات التي يمنحها كل زائر للموظفين حسب المحاور.</p>
+                        </div>
+                        <div>
+                            <select id="evaluatorSelect" onchange="renderEvaluatorStats()" class="border border-slate-300 rounded-lg px-6 py-2 outline-none focus:ring-2 focus:ring-secondary font-bold text-lg bg-slate-50">
+                                <option value="">-- اختر الزائر --</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="evaluatorStatsContainer" class="hidden">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-center">
+                                <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-2 text-xl"><i class="fas fa-users"></i></div>
+                                <h4 class="text-slate-500 text-sm font-bold">إجمالي الموظفين المُقيَّمين</h4>
+                                <p class="text-3xl font-bold text-slate-800 mt-1" id="evalTotalEmp">0</p>
+                            </div>
+                            <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-center">
+                                <div class="w-12 h-12 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-2 text-xl"><i class="fas fa-star-half-alt"></i></div>
+                                <h4 class="text-slate-500 text-sm font-bold">متوسط التقييم الممنوح (المدير)</h4>
+                                <p class="text-3xl font-bold text-slate-800 mt-1" id="evalAvgScore">0%</p>
+                            </div>
+                            <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-center">
+                                <div class="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-2 text-xl"><i class="fas fa-clipboard-check"></i></div>
+                                <h4 class="text-slate-500 text-sm font-bold">إجمالي التعليقات المُسجلة</h4>
+                                <p class="text-3xl font-bold text-slate-800 mt-1" id="evalTotalComments">0</p>
+                            </div>
+                        </div>
+
+                        <h4 class="font-bold text-lg text-slate-700 mb-4 border-b pb-2">توزيع مستويات التقييم بالتفصيل (لكل محور)</h4>
+                        <div class="overflow-x-auto border rounded-lg mb-8">
+                            <table class="w-full text-right border-collapse">
+                                <thead class="bg-slate-100">
+                                    <tr class="text-slate-600 text-sm">
+                                        <th class="p-3 border-b">المحور</th>
+                                        <th class="p-3 border-b text-center text-red-600">مستوى 1 (سيء)</th>
+                                        <th class="p-3 border-b text-center text-yellow-600">مستوى 2 (متوسط)</th>
+                                        <th class="p-3 border-b text-center text-blue-600">مستوى 3 (جيد)</th>
+                                        <th class="p-3 border-b text-center text-green-600">مستوى 4 (ممتاز)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="evaluatorAxesTable" class="text-sm">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h4 class="font-bold text-lg text-slate-700 mb-4 border-b pb-2"><i class="fas fa-users-viewfinder text-primary mr-1"></i> الموظفين الذين تم تقييمهم بواسطة هذا الزائر</h4>
+                        <div class="overflow-x-auto border rounded-lg max-h-[400px] overflow-y-auto">
+                            <table class="w-full text-right border-collapse">
+                                <thead class="sticky top-0 bg-slate-100 z-10">
+                                    <tr class="text-slate-600 text-sm">
+                                        <th class="p-3 border-b">الرقم</th>
+                                        <th class="p-3 border-b">الاسم</th>
+                                        <th class="p-3 border-b">الإقليم</th>
+                                        <th class="p-3 border-b text-center">تقييم المدير</th>
+                                        <th class="p-3 border-b text-center">الإجراء</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="evaluatorEmpsTable" class="text-sm">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: Excluded Employees -->
+            <div id="excluded" class="tab-content space-y-6">
+                <!-- Excluded content remains the same -->
+                <div class="glass-panel p-6 rounded-xl border-t-4 border-red-500">
+                    <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
+                        <div>
+                            <h3 class="text-xl font-bold text-slate-800">الموظفين المستبعدين من التحليل</h3>
+                            <p class="text-sm text-slate-500">تم استبعادهم لأنهم غير نشطين ولا يوجد زائر مُسجل لهم.</p>
+                        </div>
+                        <button onclick="exportExcluded()" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 shadow-md font-bold"><i class="fas fa-download mr-1"></i> تصدير المستبعدين</button>
+                    </div>
+                    
+                    <div class="overflow-x-auto border rounded-lg max-h-[600px] overflow-y-auto">
+                        <table class="w-full text-right border-collapse">
+                            <thead class="sticky top-0 bg-slate-100 z-10">
+                                <tr class="text-slate-600 text-sm">
+                                    <th class="p-3 border-b">الرقم الوظيفي</th>
+                                    <th class="p-3 border-b">الاسم</th>
+                                    <th class="p-3 border-b">الإقليم</th>
+                                    <th class="p-3 border-b text-center">الحالة (سبب الاستبعاد)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="excludedTable" class="text-sm">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Modal: Axis Employees List -->
+    <div id="axisEmployeesModal" class="fixed inset-0 z-[70] bg-slate-900 bg-opacity-80 hidden flex justify-center items-start pt-10 pb-10 overflow-y-auto backdrop-blur-sm">
+        <div class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl relative flex flex-col my-auto border border-slate-200">
+            <!-- Header -->
+            <div class="bg-slate-50 px-6 py-4 border-b rounded-t-2xl flex justify-between items-center sticky top-0 z-20">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800" id="axisModalTitle">موظفين المحور</h2>
+                    <p class="text-sm text-slate-500 font-semibold" id="axisModalSubtitle">مستوى التقييم: ...</p>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="exportAxisEmployees()" class="bg-accent hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors font-bold shadow-sm text-sm">
+                        <i class="fas fa-file-excel mr-1"></i> تصدير إكسيل
+                    </button>
+                    <button onclick="closeAxisModal()" class="text-slate-400 hover:text-danger text-xl transition-colors bg-white hover:bg-red-50 border w-10 h-10 rounded-full flex justify-center items-center">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <!-- Body -->
+            <div class="p-6">
+                <div class="overflow-x-auto border rounded-lg max-h-[500px] overflow-y-auto">
+                    <table class="w-full text-right border-collapse">
+                        <thead class="sticky top-0 bg-slate-100 z-10 shadow-sm">
+                            <tr class="text-slate-600 text-sm">
+                                <th class="p-3 border-b">الرقم</th>
+                                <th class="p-3 border-b">الاسم</th>
+                                <th class="p-3 border-b">الإقليم</th>
+                                <th class="p-3 border-b text-center">التقييم الفعلي بالمحور</th>
+                                <th class="p-3 border-b text-center">عرض الملف</th>
+                            </tr>
+                        </thead>
+                        <tbody id="axisModalTableBody" class="text-sm">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Employee Profile Modal -->
+    <div id="profileModal" class="fixed inset-0 z-[80] bg-slate-900 bg-opacity-80 hidden flex justify-center items-start pt-10 pb-10 overflow-y-auto backdrop-blur-sm">
+        <div class="bg-slate-50 w-full max-w-7xl rounded-2xl shadow-2xl relative flex flex-col my-auto border border-slate-200">
+            <!-- Modal Header -->
+            <div class="bg-white px-8 py-5 border-b rounded-t-2xl flex justify-between items-center sticky top-0 z-20 shadow-sm">
+                <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg" id="modalInitials">
+                        -
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800" id="modalName">اسم البائع</h2>
+                        <div class="flex gap-3 text-sm text-slate-500 mt-1 font-semibold">
+                            <span><i class="fas fa-id-badge mr-1"></i> <span id="modalId"></span></span>
+                            <span><i class="fas fa-map-marker-alt mr-1"></i> <span id="modalRegion"></span></span>
+                            <span><i class="fas fa-flag mr-1"></i> <span id="modalNat"></span></span>
+                            <span><i class="fas fa-briefcase mr-1"></i> <span id="modalExp"></span></span>
+                            <span class="text-blue-600"><i class="fas fa-user-check mr-1"></i> المُقيِّم: <span id="modalVisitor"></span></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="closeModal()" class="text-slate-400 hover:text-danger text-2xl transition-colors bg-slate-100 hover:bg-red-50 w-10 h-10 rounded-full flex justify-center items-center">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
+                
+                <!-- Right Column: Radar & Overall -->
+                <div class="col-span-1 space-y-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 text-center">
+                        <h3 class="font-bold text-slate-700 mb-4 border-b pb-2">تقييمات الإدارة</h3>
+                        <div class="mb-4">
+                            <p class="text-sm text-slate-500 mb-1">تقييم المدير المباشر</p>
+                            <p class="text-3xl font-black text-primary" id="modalManagerEval">-</p>
+                        </div>
+                        <div class="mb-4">
+                            <p class="text-sm text-slate-500 mb-1">التقييم الإجمالي (KPIs Total)</p>
+                            <p class="text-3xl font-black text-secondary" id="modalKpiTotal">-</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500 mb-1">تصنيف الموظف</p>
+                            <p class="text-xl font-bold text-slate-800 bg-slate-100 py-1 rounded" id="modalClass">-</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                        <h3 class="font-bold text-slate-700 mb-4 text-center border-b pb-2">مخطط نقاط القوة والضعف</h3>
+                        <div class="relative w-full h-64">
+                            <canvas id="radarChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Middle & Left Columns: Details -->
+                <div class="col-span-1 lg:col-span-3 space-y-6">
+                    
+                    <!-- KPI Summary Cards -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="modalKpiCards">
+                        <!-- Populated dynamically -->
+                    </div>
+
+                    <!-- Evaluation Comments Grid (Categorized) -->
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                        <h3 class="font-bold text-slate-800 text-xl mb-6 flex items-center gap-2 border-b pb-3"><i class="fas fa-list-check text-secondary"></i> تفاصيل المحاور (التعليقات)</h3>
+                        
+                        <div class="space-y-6">
+                            <!-- Strengths -->
+                            <div>
+                                <h4 class="font-bold text-green-700 mb-3 flex items-center gap-2"><i class="fas fa-check-circle"></i> نقاط القوة (ممتاز / جيد)</h4>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="comments-strengths"></div>
+                            </div>
+                            
+                            <!-- Needs Dev -->
+                            <div>
+                                <h4 class="font-bold text-yellow-700 mb-3 flex items-center gap-2"><i class="fas fa-tools"></i> يحتاج تطوير (متوسط)</h4>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="comments-dev"></div>
+                            </div>
+
+                            <!-- Needs Training -->
+                            <div>
+                                <h4 class="font-bold text-red-700 mb-3 flex items-center gap-2"><i class="fas fa-exclamation-triangle"></i> يحتاج تدريب فوراً (سيء)</h4>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="comments-critical"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        // Data Rubric from the provided image
+        const evaluationRubric = {
+            "المخالفات المالية ( مخالفات الفواتير )": {
+                weight: 6,
+                levels: {
+                    1: { text: "مخالفات جسيمة و تكرار مستمر للمخالفات", percent: "0.00%" },
+                    2: { text: "تم تسجيل أكثر من مخالفة تتعلق بالفواتير", percent: "2.00%" },
+                    3: { text: "تم تسجيل مخالفة بسيطة واحدة فقط", percent: "4.50%" },
+                    4: { text: "لا توجد مخالفات مسجلة", percent: "6.00%" }
+                }
+            },
+            "الالتزام بمواعيد العمل": {
+                weight: 6,
+                levels: {
+                    1: { text: "تأخيرات أو غيابات متكررة تؤثر على سير العمل، مع وجود تنبيهات أو إجراءات إدارية سابقة", percent: "0.00%" },
+                    2: { text: "سجل الموظف عدة تأخيرات أو حالات غياب دون مبررات كافية", percent: "2.00%" },
+                    3: { text: "حصلت بعض التأخيرات البسيطة أو الغيابات المبررة", percent: "4.50%" },
+                    4: { text: "الموظف يحضر ويغادر في المواعيد المحددة دون أي تأخير أو غياب غير مبرر", percent: "6.00%" }
+                }
+            },
+            "الالتزام بالسياسات والاجراءات ( المخالفات)": {
+                weight: 3,
+                levels: {
+                    1: { text: "ارتكاب الموظف مخالفات واضحة أو متكررة للسياسات تؤثر سلبًا على بيئة العمل أو العمل نفسه", percent: "0.00%" },
+                    2: { text: "تم رصد أكثر من مخالفة في تطبيق السياسات", percent: "1.00%" },
+                    3: { text: "تم تسجيل مخالفة طفيفة واحدة ناتجة عن اجتهاد شخصي أو سوء فهم وتم تصحيحها فورًا دون تكرار", percent: "2.25%" },
+                    4: { text: "يلتزم الموظف بجميع السياسات والإجراءات المعتمدة دون تسجيل أي مخالفات أو ملاحظات خلال فترة التقييم.", percent: "3.00%" }
+                }
+            },
+            "العجوزات": {
+                weight: 5,
+                levels: {
+                    1: { text: "الموظف مسؤول عن عجوزات واضحة و كبيرة في عهدة المعرض أو النقدية تتعدي نسبة الشركة 0.50%", percent: "0.00%" },
+                    2: { text: "سجل الموظف أكثر من حالة عجز خلال فترة استلامة", percent: "1.67%" },
+                    3: { text: "تم تسجيل عجز بسيط دون تكرار", percent: "3.75%" },
+                    4: { text: "الموظف يحافظ على عهدته بالمعرض و مسؤولياته المالية دون أي نقص أو اختلاف", percent: "5.00%" }
+                }
+            },
+            "مهارات البيع": {
+                weight: 5,
+                levels: {
+                    1: { text: "يظهر نقصاً في فهم أساسيات البيع والتعامل مع العملاء", percent: "0.00%" },
+                    2: { text: "يظهر بعض القدرات في إقناع العملاء", percent: "1.67%" },
+                    3: { text: "لديه مهارات بيع متقدمة ويُظهر قدرة على إدارة المبيعات المعقدة", percent: "3.75%" },
+                    4: { text: "يبرز بفعالية عالية في إدارة عمليات البيع وتحقيق الأهداف بثقة ودقة", percent: "5.00%" }
+                }
+            },
+            "خدمة العملاء": {
+                weight: 5,
+                levels: {
+                    1: { text: "لديه صعوبة في فهم وتلبية احتياجات العملاء الأساسية", percent: "0.00%" },
+                    2: { text: "يُظهر تعاملاً حسناً مع متطلبات العملاء وفهم احتياجاتهم", percent: "1.67%" },
+                    3: { text: "يقدم دعماً متميزاً ويجيب على استفسارات العملاء بشكل شامل ومحترف", percent: "3.75%" },
+                    4: { text: "يبتكر حلولاً مبتكرة ويدير المشكلات ببراعة، مما يؤدي إلى رضا عملاء مميز", percent: "5.00%" }
+                }
+            },
+            "مهارات التواصل": {
+                weight: 3,
+                levels: {
+                    1: { text: "يعاني من ضعف في التواصل وفهم الرسائل الضرورية", percent: "0.00%" },
+                    2: { text: "يُظهر تواصلاً فعّالاً واستخدامًا مناسبًا للغة والأسلوب المناسب", percent: "1.00%" },
+                    3: { text: "يُظهر قدرات تواصل متقدمة ويتفاعل بشكل فعّال مع جميع المستويات", percent: "2.25%" },
+                    4: { text: "يتمتع بمهارات تواصل استثنائية وقيادية عالية المستوى", percent: "3.00%" }
+                }
+            },
+            "تحليل الأرقام": {
+                weight: 2,
+                levels: {
+                    1: { text: "يعاني من صعوبة في تحليل البيانات وفهمها بشكل صحيح", percent: "0.00%" },
+                    2: { text: "يحلل البيانات بشكل سطحي", percent: "0.67%" },
+                    3: { text: "يتعمق في تحليل البيانات ويستخدمها لتحسين الأداء", percent: "1.50%" },
+                    4: { text: "يتقن تحليل الأرقام ويستخدمها في طرح التوصيات وإيصال أفكاره", percent: "2.00%" }
+                }
+            },
+            "السلوك الشخصي": {
+                weight: 3,
+                levels: {
+                    1: { text: "يبدي سلوكًا مهنيًا غير ملائم أحيانًا ويحتاج إلى تحسينات", percent: "0.00%" },
+                    2: { text: "يظهر سلوكًا مهنيًا جيدًا ويسعى لتحسينه بشكل مستمر", percent: "1.00%" },
+                    3: { text: "يعتبر مثالاً للسلوك الحرفي والمهني ويؤثر بإيجابية على الآخرين", percent: "2.25%" },
+                    4: { text: "يمتاز بسلوك شخصي ممتاز ويعتبر قدوة حسنة بشهادة الجميع", percent: "3.00%" }
+                }
+            },
+            "الرغبة في التعلم": {
+                weight: 3,
+                levels: {
+                    1: { text: "لا يظهر الحماس الكافي لاكتساب المزيد من المعرفة أو تطوير المهارات", percent: "0.00%" },
+                    2: { text: "يطور مهاراته من خلال الاستماع والتعلم من الآخرين", percent: "1.00%" },
+                    3: { text: "يسعى لتطوير مهاراته متى أتيحت الفرصة ويطبق المفاهيم الجديدة", percent: "2.25%" },
+                    4: { text: "يعمل بنشاط على تطوير نفسه وتعلم التقنيات الجديدة", percent: "3.00%" }
+                }
+            },
+            "المظهر الشخصي": {
+                weight: 4,
+                levels: {
+                    1: { text: "يظهر تقصيرًا في الاهتمام بالمظهر الشخصي الملائم لبيئة العمل", percent: "0.00%" },
+                    2: { text: "يحافظ على مظهر مناسب لبيئة العمل", percent: "1.33%" },
+                    3: { text: "يظهر مظهرًا شخصيًا ملائمًا في جميع الأحيان", percent: "3.00%" },
+                    4: { text: "يُظهر مظهرًا استثنائيًا يعكس الاحترافية والثقة", percent: "4.00%" }
+                }
+            },
+            "نظافة وترتيب المعارض": {
+                weight: 6,
+                levels: {
+                    1: { text: "المعرض يظهر بمستوى غير مقبول من النظافة أو الترتيب، ما يترك انطباعًا سلبيًا لدى الزوار والعملاء", percent: "0.00%" },
+                    2: { text: "يوجد تهاون نسبي في نظافة أو ترتيب المعرض", percent: "2.00%" },
+                    3: { text: "المعرض نظيف ومرتب بشكل عام، مع وجود بعض الملاحظات الطفيفة", percent: "4.50%" },
+                    4: { text: "يحافظ الموظف على نظافة المعرض وترتيبه بشكل يومي واحترافي", percent: "6.00%" }
+                }
+            },
+            "العمل تحت ضغط": {
+                weight: 4,
+                levels: {
+                    1: { text: "يظهر صعوبة في تنفيذ المهام تحت الضغط", percent: "0.00%" },
+                    2: { text: "ينفذ المهام في ظل الضغط ويحافظ على أداء مستقر", percent: "1.33%" },
+                    3: { text: "يتعامل مع الضغوطات بثقة ويديرها بطريقة تحافظ على الإنتاجية", percent: "3.00%" },
+                    4: { text: "يدير الضغوطات بكفاءة عالية ويحافظ على الأداء الممتاز في أصعب الظروف", percent: "4.00%" }
+                }
+            }
+        };
+
+        // Global State
+        let allData = [];
+        let excludedData = []; 
+        let actualEvalColumns = [];
+        let radarChartInstance = null;
+        let mainCharts = { region: null, nat: null, regionRank: null };
+        let axesComprehensiveStats = {}; 
+        let currentAxisModalExportData = []; 
+
+        function formatPercent(val) {
+            if (val === null || val === undefined || val === '') return '-';
+            let strVal = String(val).trim();
+            if (strVal.includes('%')) return strVal; 
+            
+            let num = parseFloat(strVal);
+            if (isNaN(num)) return strVal; 
+            
+            if (num <= 2 && num >= -2) {
+                return (num * 100).toFixed(1) + '%';
+            } else {
+                return num.toFixed(1) + '%';
+            }
+        }
+
+        // Helper to match column name with rubric data flexibly
+        function getRubricData(columnName) {
+            if (!columnName) return null;
+            let cleanCol = columnName.replace(/[\s\(\)]/g, '');
+            for (let key in evaluationRubric) {
+                let cleanKey = key.replace(/[\s\(\)]/g, '');
+                if (cleanCol.includes(cleanKey) || cleanKey.includes(cleanCol)) {
+                    return evaluationRubric[key];
+                }
+            }
+            return null;
+        }
+
+        // Determine level matching precise text from rubric, or fallback
+        function determineLevel(text, columnName) {
+            if (!text) return 0;
+            const t = String(text).trim();
+            const cleanT = t.replace(/\s+/g, ' '); // Normalize spaces
+            
+            // 1. Try to match exact text from the official rubric first
+            const rubric = getRubricData(columnName);
+            if (rubric) {
+                for (let lvl = 1; lvl <= 4; lvl++) {
+                    let rubricText = rubric.levels[lvl].text.replace(/\s+/g, ' ');
+                    if (cleanT.includes(rubricText) || rubricText.includes(cleanT)) {
+                        return lvl;
+                    }
+                }
+            }
+            
+            // 2. Fallback to keyword matching if exact text isn't found
+            const l1 = ['جسيمة', 'متكررة', 'عجوزات واضحة', 'نقصاً', 'صعوبة', 'ضعف', 'غير ملائم', 'لا يظهر الحماس', 'تقصيراً', 'غير مقبول', 'مخالفات واضحة'];
+            if (l1.some(kw => t.includes(kw))) return 1;
+            
+            const l2 = ['أكثر من', 'عدة تأخيرات', 'بعض القدرات', 'حسناً', 'فعالاً', 'سطحي', 'جيداً', 'مناسب لبيئة', 'نسبي', 'ظروف', 'ظل الضغط', 'بشكل سطحي', 'تسجيل أكثر'];
+            if (l2.some(kw => t.includes(kw))) return 2;
+            
+            const l3 = ['بسيطة', 'طفيفة', 'بسيط', 'متقدمة', 'متميزاً', 'يتعمق', 'مثالاً', 'يطور', 'ملائماً', 'نظيف', 'يتعامل مع'];
+            if (l3.some(kw => t.includes(kw))) return 3;
+            
+            const l4 = ['لا توجد', 'يحضر ويغادر', 'يلتزم', 'يحافظ', 'بفعالية', 'يبتكر', 'استثنائية', 'يتقن', 'ممتاز', 'بنشاط', 'استثنائياً', 'بكفاءة', 'توجد مخالفات'];
+            if (l4.some(kw => t.includes(kw))) return 4;
+
+            return 2; 
+        }
+
+        // File Upload Handling
+        const fileInput = document.getElementById('excelFile');
+        const uploadOverlay = document.getElementById('uploadOverlay');
+        const dataStatus = document.getElementById('dataStatus');
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const data = evt.target.result;
+                    const workbook = XLSX.read(data, { type: 'binary' });
+                    
+                    const sheetNames = workbook.SheetNames;
+                    const evalSheetName = sheetNames.find(s => s.toUpperCase().includes('EVALU'));
+                    const kpiSheetName = sheetNames.find(s => s.toUpperCase().includes('KPI'));
+
+                    if (!evalSheetName) {
+                        alert("لم يتم العثور على شيت باسم EVALUTION");
+                        return;
+                    }
+
+                    const evalDataRaw = XLSX.utils.sheet_to_json(workbook.Sheets[evalSheetName], { header: 1, defval: "" });
+                    const kpiDataRaw = kpiSheetName ? XLSX.utils.sheet_to_json(workbook.Sheets[kpiSheetName], { header: 1, defval: "" }) : [];
+
+                    processData(evalDataRaw, kpiDataRaw);
+
+                    uploadOverlay.style.opacity = '0';
+                    setTimeout(() => uploadOverlay.style.display = 'none', 300);
+                    dataStatus.innerHTML = `<i class="fas fa-check-circle ml-1"></i> تم التحميل`;
+                    dataStatus.className = "text-sm font-semibold bg-green-100 text-green-700 px-3 py-1 rounded-full";
+
+                } catch (error) {
+                    alert("حدث خطأ أثناء قراءة الملف: " + error.message);
+                    console.error(error);
+                }
+            };
+            reader.readAsBinaryString(file);
+        });
+
+        // Parse and Merge Data
+        function processData(evalRows, kpiRows) {
+            allData = [];
+            excludedData = [];
+            if(evalRows.length < 2) return;
+
+            const evalHeaders = evalRows[0];
+            
+            actualEvalColumns = [];
+            for (let i = 10; i <= 21; i++) { 
+                if(evalHeaders[i]) {
+                    actualEvalColumns.push({ index: i, name: evalHeaders[i] });
+                }
+            }
+
+            for (let i = 1; i < evalRows.length; i++) {
+                const row = evalRows[i];
+                const empId = row[0]; 
+                if (!empId) continue; 
+
+                const status = String(row[6] || '').trim().toLowerCase();
+                const visitor = String(row[5] || '').trim();
+
+                let isExcluded = false;
+                let excludeReason = row[6] || '';
+
+                if (status !== 'active') {
+                    if (!visitor || visitor === 'غير محدد' || visitor.includes('اجازة') || visitor.includes('إجازة')) {
+                        isExcluded = true;
+                        if(!excludeReason) excludeReason = visitor || 'غير نشط';
+                    }
+                }
+
+                if (isExcluded) {
+                    excludedData.push({
+                        id: empId,
+                        name: row[2] || 'بدون اسم',
+                        region: row[3] || 'غير محدد',
+                        reason: excludeReason
+                    });
+                    continue; 
+                }
+
+                let emp = {
+                    id: empId,
+                    nat: row[1] || 'غير محدد', 
+                    name: row[2] || 'بدون اسم', 
+                    region: row[3] || 'غير محدد', 
+                    visitor: visitor || 'غير محدد', 
+                    status: row[6] || '', 
+                    hireDate: row[7] || '', 
+                    exp: row[8] || '', 
+                    managerEval: row[22], 
+                    achievePercent: row[24], 
+                    avgItems: row[25], 
+                    avgBill: row[26], 
+                    avgItemPrice: row[27], 
+                    kpiTotalEval: row[28], 
+                    evalJan: row[32], 
+                    classification: row[33] || '', 
+                    evalJul: row[34], 
+                    evaluations: {},
+                    kpiDetails: null
+                };
+
+                actualEvalColumns.forEach(col => {
+                    const text = row[col.index];
+                    // Pass the column name to determineLevel for rubric matching
+                    const level = determineLevel(text, col.name);
+                    emp.evaluations[col.name] = { text: text, level: level };
+                });
+
+                allData.push(emp);
+            }
+
+            if (kpiRows.length > 1) {
+                for (let i = 1; i < kpiRows.length; i++) {
+                    const row = kpiRows[i];
+                    const kpiEmpId = row[1]; 
+                    if (!kpiEmpId) continue;
+
+                    const empIndex = allData.findIndex(e => String(e.id) === String(kpiEmpId));
+                    if (empIndex !== -1) {
+                        allData[empIndex].kpiDetails = {
+                            target: row[3] || 0, 
+                            sales: row[4] || 0, 
+                            achievement: row[5] || 0, 
+                            bills: row[6] || 0, 
+                            items: row[7] || 0, 
+                            avgBill: row[8] || 0, 
+                            avgItemPrice: row[10] || 0 
+                        };
+                    }
+                }
+            }
+
+            initializeApp();
+        }
+
+        function initializeApp() {
+            populateDashboard();
+            buildFiltersUI();
+            populateFiltersDropdowns();
+            renderEmployeesTable(allData);
+            renderComparisonTable();
+            renderKPITable();
+            populateEvaluators();
+            renderExcludedTable();
+            renderAxesAnalysis(); 
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('bg-secondary', 'text-white', 'font-semibold');
+                if(el.getAttribute('data-tab') === 'excluded') el.classList.add('text-slate-300', 'hover:bg-red-900');
+                else el.classList.add('text-slate-300', 'hover:bg-slate-800');
+            });
+            
+            document.getElementById(tabId).classList.add('active');
+            const activeBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+            
+            if(tabId === 'excluded') {
+                activeBtn.classList.remove('text-slate-300', 'hover:bg-red-900');
+                activeBtn.classList.add('bg-red-600', 'text-white', 'font-semibold');
+            } else {
+                activeBtn.classList.remove('text-slate-300', 'hover:bg-slate-800');
+                activeBtn.classList.add('bg-secondary', 'text-white', 'font-semibold');
+            }
+            
+            document.getElementById('currentTabTitle').innerText = activeBtn.innerText.trim();
+        }
+
+        // --- DASHBOARD ---
+        function populateDashboard() {
+            document.getElementById('stat-total').innerText = allData.length;
+            
+            const regions = [...new Set(allData.map(e => e.region).filter(Boolean))];
+            document.getElementById('stat-regions').innerText = regions.length;
+
+            let totalAchieve = 0, achieveCount = 0;
+            allData.forEach(e => {
+                let valStr = e.kpiDetails ? e.kpiDetails.achievement : e.achievePercent;
+                if(valStr) {
+                    let val = parseFloat(String(valStr).replace('%', ''));
+                    if(val <= 2) val *= 100; 
+                    if(!isNaN(val)) { totalAchieve += val; achieveCount++; }
+                }
+            });
+            document.getElementById('stat-achieve').innerText = achieveCount > 0 ? (totalAchieve / achieveCount).toFixed(1) + '%' : '-';
+
+            let mTotal = 0, mCount = 0;
+            allData.forEach(e => {
+                if(e.managerEval) {
+                    let val = parseFloat(String(e.managerEval).replace('%', ''));
+                    if(val <= 2) val *= 100;
+                    if(!isNaN(val)) { mTotal += val; mCount++; }
+                }
+            });
+            document.getElementById('stat-manager').innerText = mCount > 0 ? (mTotal / mCount).toFixed(1) + '%' : '-';
+
+            drawCharts(regions);
+        }
+
+        function drawCharts(regions) {
+            let regionData = {};
+            regions.forEach(r => regionData[r] = {sum:0, count:0});
+            allData.forEach(e => {
+                if(e.region && regionData[e.region] && e.evalJan) {
+                    let val = parseFloat(String(e.evalJan).replace('%', ''));
+                    if(val <= 2) val *= 100;
+                    if(!isNaN(val)) { regionData[e.region].sum += val; regionData[e.region].count++; }
+                }
+            });
+            
+            let rLabels = [], rData = [];
+            let regionAvgArray = []; 
+            for(let r in regionData) {
+                rLabels.push(r);
+                let avg = regionData[r].count > 0 ? (regionData[r].sum / regionData[r].count) : 0;
+                rData.push(avg.toFixed(2));
+                if(regionData[r].count > 0) {
+                    regionAvgArray.push({name: r, avg: avg});
+                }
+            }
+
+            if(mainCharts.region) mainCharts.region.destroy();
+            mainCharts.region = new Chart(document.getElementById('regionChart'), {
+                type: 'bar',
+                data: {
+                    labels: rLabels,
+                    datasets: [{ label: 'متوسط التقييم (%)', data: rData, backgroundColor: '#3b82f6', borderRadius: 4 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            let natData = {};
+            allData.forEach(e => {
+                let n = e.nat || 'أخرى';
+                natData[n] = (natData[n] || 0) + 1;
+            });
+            
+            if(mainCharts.nat) mainCharts.nat.destroy();
+            mainCharts.nat = new Chart(document.getElementById('nationalityChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(natData),
+                    datasets: [{ data: Object.values(natData), backgroundColor: ['#1e3a8a', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#64748b', '#0ea5e9', '#ec4899', '#f97316'] }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+            });
+
+            let natArray = Object.keys(natData).map(k => ({name: k, count: natData[k]}));
+            natArray.sort((a,b) => b.count - a.count);
+            let nBody = document.getElementById('natTableBody');
+            nBody.innerHTML = '';
+            natArray.forEach(n => {
+                nBody.innerHTML += `<tr class="border-b hover:bg-slate-100"><td class="p-2 font-semibold text-slate-800">${n.name}</td><td class="p-2 font-black text-primary">${n.count}</td></tr>`;
+            });
+
+            regionAvgArray.sort((a,b) => b.avg - a.avg); 
+            let rankLabels = regionAvgArray.map((r, i) => `${i+1}. ${r.name}`);
+            let rankData = regionAvgArray.map(r => r.avg.toFixed(2));
+
+            if(mainCharts.regionRank) mainCharts.regionRank.destroy();
+            mainCharts.regionRank = new Chart(document.getElementById('regionRankChart'), {
+                type: 'bar',
+                data: {
+                    labels: rankLabels,
+                    datasets: [{ label: 'متوسط التقييم (%)', data: rankData, backgroundColor: '#10b981', borderRadius: 4 }]
+                },
+                options: { 
+                    indexAxis: 'y', 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { beginAtZero: false, min: Math.max(0, Math.min(...rankData) - 10) }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        // --- NEW TAB: COMPREHENSIVE AXES ANALYSIS ---
+        function renderAxesAnalysis() {
+            const container = document.getElementById('axesAnalysisContainer');
+            container.innerHTML = '';
+            
+            axesComprehensiveStats = {};
+
+            actualEvalColumns.forEach(col => {
+                axesComprehensiveStats[col.name] = {
+                    1: { count: 0, emps: [] },
+                    2: { count: 0, emps: [] },
+                    3: { count: 0, emps: [] },
+                    4: { count: 0, emps: [] }
+                };
+            });
+
+            allData.forEach(emp => {
+                actualEvalColumns.forEach(col => {
+                    const evalData = emp.evaluations[col.name];
+                    if(evalData && evalData.level >= 1 && evalData.level <= 4) {
+                        axesComprehensiveStats[col.name][evalData.level].count++;
+                        
+                        // Add employee 
+                        axesComprehensiveStats[col.name][evalData.level].emps.push({
+                            ...emp,
+                            currentAxisText: evalData.text // the text found in excel
+                        });
+                    }
+                });
+            });
+
+            actualEvalColumns.forEach(col => {
+                const stats = axesComprehensiveStats[col.name];
+                const rubricData = getRubricData(col.name);
+                const overallWeight = rubricData ? rubricData.weight + '%' : '-';
+                
+                const buildCard = (level, title, colorClass, borderClass, bgClass, textClass, icon) => {
+                    
+                    // Fetch standard text and percent from the matrix
+                    let standardText = rubricData ? rubricData.levels[level].text : 'نص التقييم غير مدرج بالمصفوفة';
+                    let weightPercent = rubricData ? rubricData.levels[level].percent : '-';
+
+                    return `
+                        <div class="border ${borderClass} ${bgClass} rounded-xl p-4 cursor-pointer hover:shadow-md transition-all transform hover:-translate-y-1 relative group flex flex-col h-full" onclick="openAxisModal('${col.name}', ${level}, '${title}')">
+                            <div class="flex justify-between items-start mb-3 border-b pb-2 ${borderClass.replace('border-', 'border-opacity-50 border-')}">
+                                <div class="flex flex-col">
+                                    <div class="flex items-center gap-2">
+                                        <i class="fas ${icon} ${textClass} text-lg"></i>
+                                        <span class="font-bold ${textClass} text-sm">${title}</span>
+                                    </div>
+                                    <span class="text-xs font-black ${textClass} mt-1.5 bg-white inline-block px-2 py-0.5 rounded shadow-sm border ${borderClass} w-fit" dir="ltr">${weightPercent}</span>
+                                </div>
+                                <span class="bg-white shadow-sm border ${borderClass} px-3 py-1 rounded-full text-sm font-black ${textClass}">${stats[level].count}</span>
+                            </div>
+                            <div class="text-xs text-slate-700 leading-relaxed flex-1 font-semibold" title="انقر لعرض الموظفين">
+                                ${standardText}
+                            </div>
+                            <div class="mt-3 opacity-0 group-hover:opacity-100 transition-opacity text-left">
+                                <span class="text-[10px] bg-white px-2 py-1 rounded-md shadow-sm border font-bold text-slate-500">عرض الموظفين <i class="fas fa-arrow-left mr-1"></i></span>
+                            </div>
+                        </div>
+                    `;
+                };
+
+                const axisDiv = document.createElement('div');
+                axisDiv.className = 'bg-white p-6 rounded-xl shadow-sm border border-slate-200';
+                axisDiv.innerHTML = `
+                    <h4 class="font-bold text-lg mb-4 text-slate-800 border-b border-slate-100 pb-3 flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-caret-left text-secondary"></i> ${col.name}
+                        </div>
+                        <span class="text-sm font-bold bg-slate-100 text-slate-600 px-3 py-1 rounded-full">وزن المحور: ${overallWeight}</span>
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        ${buildCard(1, 'المستوى الأول', 'text-red-700', 'border-red-200', 'bg-red-50', 'text-red-700', 'fa-times-circle')}
+                        ${buildCard(2, 'المستوى الثاني', 'text-yellow-700', 'border-yellow-200', 'bg-yellow-50', 'text-yellow-700', 'fa-exclamation-circle')}
+                        ${buildCard(3, 'المستوى الثالث', 'text-blue-700', 'border-blue-200', 'bg-blue-50', 'text-blue-700', 'fa-check-circle')}
+                        ${buildCard(4, 'المستوى الرابع', 'text-green-700', 'border-green-200', 'bg-green-50', 'text-green-700', 'fa-star')}
+                    </div>
+                `;
+                container.appendChild(axisDiv);
+            });
+        }
+
+        function openAxisModal(axisName, level, levelTitle) {
+            const data = axesComprehensiveStats[axisName][level].emps;
+            document.getElementById('axisModalTitle').innerText = axisName;
+            document.getElementById('axisModalSubtitle').innerText = `الموظفين الحاصلين على: ${levelTitle} (${data.length} موظف)`;
+            
+            const tbody = document.getElementById('axisModalTableBody');
+            tbody.innerHTML = '';
+            
+            currentAxisModalExportData = []; 
+
+            if(data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center p-6 text-slate-400 font-bold">لا يوجد موظفين في هذا المستوى</td></tr>';
+            } else {
+                data.forEach(emp => {
+                    currentAxisModalExportData.push({
+                        "الرقم الوظيفي": emp.id,
+                        "الاسم": emp.name,
+                        "الإقليم": emp.region,
+                        "التقييم الفعلي بالمحور": emp.currentAxisText, // actual text from excel
+                        "التقييم العام للمدير": formatPercent(emp.managerEval)
+                    });
+
+                    const tr = document.createElement('tr');
+                    tr.className = 'border-b hover:bg-slate-50 transition-colors';
+                    tr.innerHTML = `
+                        <td class="p-3 font-semibold text-slate-500 text-xs">${emp.id}</td>
+                        <td class="p-3 font-bold text-slate-800">${emp.name}</td>
+                        <td class="p-3"><span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs">${emp.region}</span></td>
+                        <td class="p-3 text-slate-600 text-xs font-semibold w-1/2">${emp.currentAxisText}</td>
+                        <td class="p-3 text-center">
+                            <button onclick="openProfile('${emp.id}')" class="bg-slate-800 text-white px-3 py-1 rounded hover:bg-slate-700 transition-colors text-xs font-bold whitespace-nowrap">
+                                <i class="fas fa-eye mr-1"></i> الملف
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            document.getElementById('axisEmployeesModal').classList.remove('hidden');
+        }
+
+        function closeAxisModal() {
+            document.getElementById('axisEmployeesModal').classList.add('hidden');
+        }
+
+        function exportAxisEmployees() {
+            if(currentAxisModalExportData.length === 0) return alert("لا يوجد بيانات لتصديرها");
+            
+            const axisName = document.getElementById('axisModalTitle').innerText;
+            const safeAxisName = axisName.replace(/[\\/*?:"<>|]/g, "").substring(0, 30); 
+            
+            const ws = XLSX.utils.json_to_sheet(currentAxisModalExportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "الموظفين");
+            XLSX.writeFile(wb, `Employees_${safeAxisName}.xlsx`);
+        }
+
+        // --- FILTERS TAB ---
+        function populateFiltersDropdowns() {
+            const regions = [...new Set(allData.map(e => e.region).filter(Boolean))].sort();
+            const nats = [...new Set(allData.map(e => e.nat).filter(Boolean))].sort();
+            const exps = [...new Set(allData.map(e => e.exp).filter(Boolean))].sort();
+            
+            const addOpts = (id, arr) => {
+                const s = document.getElementById(id);
+                if(s) arr.forEach(i => s.options.add(new Option(i, i)));
+            };
+
+            addOpts('empRegionFilter', regions);
+            addOpts('advFilterRegion', regions);
+            addOpts('advFilterNat', nats);
+            addOpts('advFilterExp', exps);
+        }
+
+        function buildFiltersUI() {
+            const container = document.getElementById('filterAxesContainer');
+            container.innerHTML = '';
+            
+            actualEvalColumns.forEach(col => {
+                const div = document.createElement('div');
+                div.className = 'border border-slate-200 rounded-lg p-3 bg-white shadow-sm';
+                div.innerHTML = `
+                    <h4 class="font-bold text-slate-700 text-sm mb-2 pb-1 border-b" title="${col.name}">${col.name.length > 25 ? col.name.substring(0,25)+'...' : col.name}</h4>
+                    <div class="space-y-1 text-xs">
+                        <label class="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1 rounded"><input type="checkbox" data-axis="${col.name}" value="1" class="filter-chk w-4 h-4 text-danger accent-danger"> <span class="px-2 py-0.5 rounded bg-red-100 text-red-800 font-semibold">1. يحتاج تدريب (سيء)</span></label>
+                        <label class="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1 rounded"><input type="checkbox" data-axis="${col.name}" value="2" class="filter-chk w-4 h-4 text-warning accent-warning"> <span class="px-2 py-0.5 rounded bg-yellow-100 text-yellow-800 font-semibold">2. يحتاج تطوير (متوسط)</span></label>
+                        <label class="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1 rounded"><input type="checkbox" data-axis="${col.name}" value="3" class="filter-chk w-4 h-4 text-blue-500 accent-blue-500"> <span class="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-semibold">3. مستوى جيد</span></label>
+                        <label class="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1 rounded"><input type="checkbox" data-axis="${col.name}" value="4" class="filter-chk w-4 h-4 text-accent accent-accent"> <span class="px-2 py-0.5 rounded bg-green-100 text-green-800 font-semibold">4. مستوى ممتاز</span></label>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        let currentFilteredData = [];
+
+        function applyFilters() {
+            const reg = document.getElementById('advFilterRegion').value;
+            const nat = document.getElementById('advFilterNat').value;
+            const exp = document.getElementById('advFilterExp').value;
+            const perfTrend = document.getElementById('advFilterPerf').value;
+            
+            const minAchieve = parseFloat(document.getElementById('advFilterAchieve').value) || 0;
+            const minSales = parseFloat(document.getElementById('advFilterSales').value) || 0;
+            const minBills = parseFloat(document.getElementById('advFilterBills').value) || 0;
+            const minItems = parseFloat(document.getElementById('advFilterItems').value) || 0;
+
+            const checkboxes = document.querySelectorAll('.filter-chk:checked');
+            let reqFilters = {};
+            checkboxes.forEach(chk => {
+                const axis = chk.getAttribute('data-axis');
+                const level = parseInt(chk.value);
+                if(!reqFilters[axis]) reqFilters[axis] = [];
+                reqFilters[axis].push(level);
+            });
+
+            currentFilteredData = allData.filter(emp => {
+                if(reg && emp.region !== reg) return false;
+                if(nat && emp.nat !== nat) return false;
+                if(exp && emp.exp !== exp) return false;
+
+                if (perfTrend === 'declined') {
+                    let prev = parseFloat(String(emp.evalJul).replace('%',''));
+                    let curr = parseFloat(String(emp.evalJan).replace('%',''));
+                    if(prev <= 2) prev *= 100;
+                    if(curr <= 2) curr *= 100;
+                    if (isNaN(prev) || isNaN(curr) || curr >= prev) return false; 
+                }
+
+                if (emp.kpiDetails) {
+                    let ach = parseFloat(String(emp.kpiDetails.achievement).replace('%',''));
+                    if(ach <= 2) ach *= 100;
+                    
+                    if(ach < minAchieve) return false;
+                    if(parseFloat(emp.kpiDetails.sales || 0) < minSales) return false;
+                    if(parseFloat(emp.kpiDetails.bills || 0) < minBills) return false;
+                    if(parseFloat(emp.kpiDetails.items || 0) < minItems) return false;
+                } else if (minAchieve > 0 || minSales > 0 || minBills > 0 || minItems > 0) {
+                    return false; 
+                }
+
+                for (const axis in reqFilters) {
+                    const empAxisData = emp.evaluations[axis];
+                    if (!empAxisData) return false; 
+                    if (!reqFilters[axis].includes(empAxisData.level)) return false;
+                }
+
+                return true;
+            });
+
+            document.getElementById('filterResultCount').innerText = currentFilteredData.length;
+            renderFilterResultsTable(currentFilteredData);
+        }
+
+        function resetFilters() {
+            document.querySelectorAll('.filter-chk').forEach(c => c.checked = false);
+            document.getElementById('advFilterRegion').value = "";
+            document.getElementById('advFilterNat').value = "";
+            document.getElementById('advFilterExp').value = "";
+            document.getElementById('advFilterPerf').value = "";
+            document.getElementById('advFilterAchieve').value = "";
+            document.getElementById('advFilterSales').value = "";
+            document.getElementById('advFilterBills').value = "";
+            document.getElementById('advFilterItems').value = "";
+            currentFilteredData = [];
+            document.getElementById('filterResultCount').innerText = "0";
+            document.getElementById('filterResultsTable').innerHTML = '<tr><td colspan="5" class="text-center p-6 text-slate-400">قم بتطبيق الفلتر لعرض النتائج</td></tr>';
+        }
+
+        function renderFilterResultsTable(data) {
+            const tbody = document.getElementById('filterResultsTable');
+            tbody.innerHTML = '';
+            if(data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center p-6 text-red-500 font-bold">لا يوجد نتائج تطابق هذه الفلاتر</td></tr>';
+                return;
+            }
+            data.forEach(emp => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b hover:bg-slate-50 transition-colors';
+                tr.innerHTML = `
+                    <td class="p-3 font-semibold text-primary">${emp.id}</td>
+                    <td class="p-3 font-bold text-slate-800">${emp.name}</td>
+                    <td class="p-3"><span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs">${emp.region}</span></td>
+                    <td class="p-3 font-bold text-slate-800" dir="ltr">${formatPercent(emp.evalJan)}</td>
+                    <td class="p-3 text-center"><button onclick="openProfile('${emp.id}')" class="bg-secondary text-white p-1.5 rounded hover:bg-blue-600"><i class="fas fa-eye"></i></button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function exportFiltered() {
+            if(currentFilteredData.length === 0) return alert("لا يوجد بيانات لتصديرها");
+            const exportData = currentFilteredData.map(e => {
+                let obj = {
+                    "الرقم الوظيفي": e.id,
+                    "الاسم": e.name,
+                    "الإقليم": e.region,
+                    "الجنسية": e.nat,
+                    "التقييم العام": formatPercent(e.evalJan)
+                };
+                actualEvalColumns.forEach(c => {
+                    obj[c.name] = e.evaluations[c.name] ? e.evaluations[c.name].text : '';
+                });
+                return obj;
+            });
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Filtered_Results");
+            XLSX.writeFile(wb, "Filtered_Employees.xlsx");
+        }
+
+        // --- EMPLOYEES TAB ---
+        function searchEmployees() {
+            const term = document.getElementById('empSearch').value.toLowerCase();
+            const reg = document.getElementById('empRegionFilter').value;
+            
+            const filtered = allData.filter(e => {
+                const matchTerm = String(e.name).toLowerCase().includes(term) || String(e.id).includes(term);
+                const matchReg = reg === "" || e.region === reg;
+                return matchTerm && matchReg;
+            });
+            renderEmployeesTable(filtered);
+        }
+
+        function renderEmployeesTable(data) {
+            const tbody = document.getElementById('employeesTable');
+            tbody.innerHTML = '';
+            data.forEach(emp => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b hover:bg-slate-50 transition-colors';
+                tr.innerHTML = `
+                    <td class="p-3 font-semibold text-slate-500 text-xs">${emp.id}</td>
+                    <td class="p-3 font-bold text-slate-800">${emp.name}</td>
+                    <td class="p-3 text-slate-600">${emp.nat}</td>
+                    <td class="p-3"><span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs">${emp.region}</span></td>
+                    <td class="p-3 text-center font-bold text-primary" dir="ltr">${formatPercent(emp.managerEval)}</td>
+                    <td class="p-3 text-center font-bold text-secondary" dir="ltr">${formatPercent(emp.kpiTotalEval)}</td>
+                    <td class="p-3 text-center"><button onclick="openProfile('${emp.id}')" class="bg-slate-800 text-white px-3 py-1 rounded hover:bg-slate-700 transition-colors text-xs font-bold"><i class="fas fa-chart-line mr-1"></i> الملف</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // --- COMPARISON TAB ---
+        function renderComparisonTable() {
+            const dropVal = document.getElementById('dropFilter').value;
+            const searchTerm = document.getElementById('compSearch').value.toLowerCase();
+            const tbody = document.getElementById('comparisonTable');
+            tbody.innerHTML = '';
+
+            let compDataForExport = [];
+
+            allData.forEach(emp => {
+                const matchTerm = String(emp.name).toLowerCase().includes(searchTerm) || String(emp.id).includes(searchTerm);
+                if (!matchTerm) return;
+
+                let prev = parseFloat(String(emp.evalJul).replace('%',''));
+                let curr = parseFloat(String(emp.evalJan).replace('%',''));
+                
+                if(prev <= 2) prev *= 100;
+                if(curr <= 2) curr *= 100;
+
+                if(!isNaN(prev) && !isNaN(curr)) {
+                    let diff = curr - prev;
+                    let show = false;
+                    if(dropVal === 'all') show = true;
+                    else if(dropVal === '0' && diff < 0) show = true;
+                    else if(dropVal === '5' && diff <= -5) show = true;
+                    else if(dropVal === '10' && diff <= -10) show = true;
+                    else if(dropVal === '20' && diff <= -20) show = true;
+
+                    if(show) {
+                        compDataForExport.push({
+                            "الرقم الوظيفي": emp.id,
+                            "الاسم": emp.name,
+                            "تقييم سابق": prev.toFixed(1) + "%",
+                            "تقييم حالي": curr.toFixed(1) + "%",
+                            "مقدار التغير": diff.toFixed(1) + "%"
+                        });
+
+                        let badgeClass = diff > 0 ? 'bg-green-100 text-green-700' : (diff < 0 ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700');
+                        const tr = document.createElement('tr');
+                        tr.className = 'border-b hover:bg-slate-50 transition-colors';
+                        tr.innerHTML = `
+                            <td class="p-3 font-bold text-slate-800">${emp.name}<br><span class="text-xs font-normal text-slate-400">${emp.id}</span></td>
+                            <td class="p-3 text-center text-slate-600" dir="ltr">${prev.toFixed(1)}%</td>
+                            <td class="p-3 text-center font-bold text-slate-800" dir="ltr">${curr.toFixed(1)}%</td>
+                            <td class="p-3 text-center" dir="ltr"><span class="px-3 py-1 rounded font-bold text-sm inline-block w-20 ${badgeClass}">${diff > 0 ? '+' : ''}${diff.toFixed(1)}%</span></td>
+                        `;
+                        tbody.appendChild(tr);
+                    }
+                }
+            });
+            window.currentCompData = compDataForExport;
+        }
+
+        function exportComparison() {
+            if(!window.currentCompData || window.currentCompData.length === 0) return alert("لا يوجد بيانات لتصديرها");
+            const ws = XLSX.utils.json_to_sheet(window.currentCompData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Comparison");
+            XLSX.writeFile(wb, "Performance_Comparison.xlsx");
+        }
+
+        // --- KPI TAB ---
+        function renderKPITable() {
+            const searchTerm = document.getElementById('kpiSearch').value.toLowerCase();
+            const minAchieve = parseFloat(document.getElementById('kpiTabFilterAchieve').value) || 0;
+            const minSales = parseFloat(document.getElementById('kpiTabFilterSales').value) || 0;
+            const minBills = parseFloat(document.getElementById('kpiTabFilterBills').value) || 0;
+            const minItems = parseFloat(document.getElementById('kpiTabFilterItems').value) || 0;
+            const minAvgBill = parseFloat(document.getElementById('kpiTabFilterAvgBill').value) || 0;
+            const minAvgItem = parseFloat(document.getElementById('kpiTabFilterAvgItem').value) || 0;
+            const minKpiTotal = parseFloat(document.getElementById('kpiTabFilterTotalKPI').value) || 0;
+
+            const tbody = document.getElementById('kpiTable');
+            tbody.innerHTML = '';
+
+            let kpiDataForExport = [];
+
+            allData.forEach(emp => {
+                const matchTerm = String(emp.name).toLowerCase().includes(searchTerm) || String(emp.id).includes(searchTerm);
+                if (!matchTerm) return;
+
+                if(!emp.kpiDetails) return;
+                const k = emp.kpiDetails;
+                
+                let ach = parseFloat(String(k.achievement).replace('%',''));
+                if(ach <= 2) ach *= 100; 
+
+                let kpiTotalVal = parseFloat(String(emp.kpiTotalEval).replace('%',''));
+                if(kpiTotalVal <= 2) kpiTotalVal *= 100;
+
+                if(ach < minAchieve) return;
+                if(parseFloat(k.sales || 0) < minSales) return;
+                if(parseFloat(k.bills || 0) < minBills) return;
+                if(parseFloat(k.items || 0) < minItems) return;
+                if(parseFloat(k.avgBill || 0) < minAvgBill) return;
+                if(parseFloat(k.avgItemPrice || 0) < minAvgItem) return;
+                if(kpiTotalVal < minKpiTotal) return;
+
+                kpiDataForExport.push({name: emp.name, ...k, totalEval: emp.kpiTotalEval});
+
+                const tr = document.createElement('tr');
+                tr.className = 'border-b hover:bg-slate-50 transition-colors';
+                tr.innerHTML = `
+                    <td class="p-3 font-bold text-slate-800 text-sm whitespace-nowrap">${emp.name}</td>
+                    <td class="p-3 text-slate-600">${Number(k.target).toLocaleString()}</td>
+                    <td class="p-3 text-slate-800 font-bold">${Number(k.sales).toLocaleString()}</td>
+                    <td class="p-3"><span class="px-2 py-1 rounded text-xs font-bold ${ach >= 100 ? 'bg-green-100 text-green-800' : (ach < 80 ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800')}" dir="ltr">${ach.toFixed(1)}%</span></td>
+                    <td class="p-3 text-slate-600">${k.bills}</td>
+                    <td class="p-3 text-slate-600">${k.items}</td>
+                    <td class="p-3 text-slate-600">${Number(k.avgBill).toLocaleString()}</td>
+                    <td class="p-3 text-slate-600">${Number(k.avgItemPrice).toLocaleString()}</td>
+                    <td class="p-3 font-black text-primary bg-blue-50 text-center" dir="ltr">${formatPercent(emp.kpiTotalEval)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            window.currentKpiData = kpiDataForExport;
+        }
+
+        function exportKPI() {
+            if(!window.currentKpiData || window.currentKpiData.length === 0) return alert("لا يوجد بيانات لتصديرها");
+            const ws = XLSX.utils.json_to_sheet(window.currentKpiData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "KPIs");
+            XLSX.writeFile(wb, "KPI_Analysis.xlsx");
+        }
+
+        // --- EVALUATORS TAB ---
+        function populateEvaluators() {
+            const visitors = [...new Set(allData.map(e => e.visitor).filter(v => v && v !== 'غير محدد'))].sort();
+            const select = document.getElementById('evaluatorSelect');
+            visitors.forEach(v => select.options.add(new Option(v, v)));
+        }
+
+        function renderEvaluatorStats() {
+            const visitorName = document.getElementById('evaluatorSelect').value;
+            const container = document.getElementById('evaluatorStatsContainer');
+            
+            if(!visitorName) {
+                container.classList.add('hidden');
+                return;
+            }
+            container.classList.remove('hidden');
+
+            const emps = allData.filter(e => String(e.visitor).trim() === visitorName);
+            
+            document.getElementById('evalTotalEmp').innerText = emps.length;
+
+            let mTotal = 0, mCount = 0;
+            let totalComments = 0;
+            
+            let axisStats = {};
+            actualEvalColumns.forEach(c => {
+                axisStats[c.name] = { l1: 0, l2: 0, l3: 0, l4: 0 };
+            });
+
+            emps.forEach(emp => {
+                if(emp.managerEval) {
+                    let val = parseFloat(String(emp.managerEval).replace('%', ''));
+                    if(val <= 2) val *= 100;
+                    if(!isNaN(val)) { mTotal += val; mCount++; }
+                }
+
+                actualEvalColumns.forEach(col => {
+                    const evalData = emp.evaluations[col.name];
+                    if(evalData && evalData.level > 0) {
+                        axisStats[col.name][`l${evalData.level}`]++;
+                        totalComments++;
+                    }
+                });
+            });
+
+            document.getElementById('evalAvgScore').innerText = mCount > 0 ? (mTotal / mCount).toFixed(1) + '%' : '-';
+            document.getElementById('evalTotalComments').innerText = totalComments;
+
+            const tbody = document.getElementById('evaluatorAxesTable');
+            tbody.innerHTML = '';
+            actualEvalColumns.forEach(col => {
+                const stats = axisStats[col.name];
+                const tr = document.createElement('tr');
+                tr.className = 'border-b hover:bg-slate-50 transition-colors';
+                tr.innerHTML = `
+                    <td class="p-3 font-bold text-slate-700">${col.name}</td>
+                    <td class="p-3 text-center font-bold ${stats.l1 > 0 ? 'text-red-600 bg-red-50' : 'text-slate-400'}">${stats.l1}</td>
+                    <td class="p-3 text-center font-bold ${stats.l2 > 0 ? 'text-yellow-600 bg-yellow-50' : 'text-slate-400'}">${stats.l2}</td>
+                    <td class="p-3 text-center font-bold ${stats.l3 > 0 ? 'text-blue-600 bg-blue-50' : 'text-slate-400'}">${stats.l3}</td>
+                    <td class="p-3 text-center font-bold ${stats.l4 > 0 ? 'text-green-600 bg-green-50' : 'text-slate-400'}">${stats.l4}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            const empTbody = document.getElementById('evaluatorEmpsTable');
+            empTbody.innerHTML = '';
+            emps.forEach(emp => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b hover:bg-slate-50 transition-colors';
+                tr.innerHTML = `
+                    <td class="p-3 font-semibold text-slate-500 text-xs">${emp.id}</td>
+                    <td class="p-3 font-bold text-slate-800">${emp.name}</td>
+                    <td class="p-3"><span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs">${emp.region}</span></td>
+                    <td class="p-3 text-center font-bold text-primary" dir="ltr">${formatPercent(emp.managerEval)}</td>
+                    <td class="p-3 text-center"><button onclick="openProfile('${emp.id}')" class="bg-secondary text-white px-3 py-1 rounded hover:bg-blue-600 transition-colors text-xs font-bold"><i class="fas fa-eye mr-1"></i> عرض الملف</button></td>
+                `;
+                empTbody.appendChild(tr);
+            });
+        }
+
+        // --- EXCLUDED EMPLOYEES TAB ---
+        function renderExcludedTable() {
+            const tbody = document.getElementById('excludedTable');
+            tbody.innerHTML = '';
+            
+            if(excludedData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center p-6 text-slate-500 font-bold">لا يوجد موظفين مستبعدين</td></tr>';
+                return;
+            }
+
+            excludedData.forEach(emp => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b hover:bg-slate-50 transition-colors';
+                tr.innerHTML = `
+                    <td class="p-3 font-semibold text-slate-500">${emp.id}</td>
+                    <td class="p-3 font-bold text-slate-800">${emp.name}</td>
+                    <td class="p-3 text-slate-600">${emp.region}</td>
+                    <td class="p-3 text-center"><span class="px-3 py-1 rounded-full bg-red-100 text-red-700 font-bold text-xs">${emp.reason}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function exportExcluded() {
+            if(excludedData.length === 0) return alert("لا يوجد بيانات لتصديرها");
+            const ws = XLSX.utils.json_to_sheet(excludedData.map(e => ({
+                "الرقم الوظيفي": e.id, "الاسم": e.name, "الإقليم": e.region, "سبب الاستبعاد": e.reason
+            })));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Excluded_Employees");
+            XLSX.writeFile(wb, "Excluded_Employees.xlsx");
+        }
+
+        // --- PROFILE MODAL ---
+        let currentProfileId = null;
+
+        function openProfile(id) {
+            const emp = allData.find(e => String(e.id) === String(id));
+            if(!emp) return;
+            currentProfileId = emp.id;
+
+            document.getElementById('modalName').innerText = emp.name;
+            document.getElementById('modalId').innerText = emp.id;
+            document.getElementById('modalRegion').innerText = emp.region;
+            document.getElementById('modalNat').innerText = emp.nat;
+            document.getElementById('modalExp').innerText = emp.exp || 'غير مدرج';
+            document.getElementById('modalVisitor').innerText = emp.visitor;
+            document.getElementById('modalInitials').innerText = emp.name.substring(0, 2);
+            
+            document.getElementById('modalManagerEval').innerText = formatPercent(emp.managerEval);
+            document.getElementById('modalKpiTotal').innerText = formatPercent(emp.kpiTotalEval);
+            document.getElementById('modalClass').innerText = emp.classification || '-';
+
+            const kpiContainer = document.getElementById('modalKpiCards');
+            kpiContainer.innerHTML = '';
+            if(emp.kpiDetails) {
+                const k = emp.kpiDetails;
+                let ach = parseFloat(String(k.achievement).replace('%',''));
+                if(ach <= 2) ach *= 100;
+
+                const cards = [
+                    { title: "الهدف", val: Number(k.target).toLocaleString(), icon: "fa-bullseye", color: "text-blue-500" },
+                    { title: "المبيعات", val: Number(k.sales).toLocaleString(), icon: "fa-money-bill-wave", color: "text-green-500" },
+                    { title: "نسبة التحقيق", val: ach.toFixed(1) + "%", icon: "fa-chart-pie", color: ach >= 100 ? "text-green-500" : (ach < 80 ? "text-red-500" : "text-yellow-500") },
+                    { title: "الفواتير", val: k.bills, icon: "fa-file-invoice-dollar", color: "text-purple-500" }
+                ];
+                cards.forEach(c => {
+                    kpiContainer.innerHTML += `
+                        <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center ${c.color} text-lg shrink-0"><i class="fas ${c.icon}"></i></div>
+                            <div><p class="text-[10px] text-slate-500 font-bold">${c.title}</p><p class="font-black text-slate-800 text-base" dir="ltr">${c.val}</p></div>
+                        </div>
+                    `;
+                });
+            } else {
+                kpiContainer.innerHTML = '<div class="col-span-4 p-4 text-center text-slate-400 bg-white border rounded-xl">لا توجد بيانات مبيعات KPI</div>';
+            }
+
+            const labels = [];
+            const dataPts = [];
+            
+            let htmlStrengths = '';
+            let htmlDev = '';
+            let htmlCritical = '';
+
+            actualEvalColumns.forEach(col => {
+                labels.push(col.name.split(' ')[0]); 
+                const evalData = emp.evaluations[col.name];
+                const level = evalData ? evalData.level : 0;
+                const text = evalData ? evalData.text : '-';
+                
+                dataPts.push(level);
+
+                let lvlClass = '', icon = '';
+                if(level >= 3) { lvlClass = 'bg-green-50 border-green-200 text-green-900'; icon='fa-check text-green-500'; }
+                else if(level == 2) { lvlClass = 'bg-yellow-50 border-yellow-200 text-yellow-900'; icon='fa-minus text-yellow-500'; }
+                else if(level == 1) { lvlClass = 'bg-red-50 border-red-200 text-red-900'; icon='fa-times text-red-500'; }
+
+                const cardHtml = `
+                    <div class="p-3 border rounded-lg ${lvlClass} relative flex gap-3 items-start">
+                        <i class="fas ${icon} mt-1"></i>
+                        <div>
+                            <p class="text-xs font-bold mb-1 opacity-70">${col.name}</p>
+                            <p class="text-sm font-semibold">${text}</p>
+                        </div>
+                    </div>
+                `;
+
+                if(level >= 3) htmlStrengths += cardHtml;
+                else if(level == 2) htmlDev += cardHtml;
+                else if(level == 1) htmlCritical += cardHtml;
+            });
+
+            document.getElementById('comments-strengths').innerHTML = htmlStrengths || '<p class="text-sm text-slate-400">لا يوجد نقاط في هذا المستوى</p>';
+            document.getElementById('comments-dev').innerHTML = htmlDev || '<p class="text-sm text-slate-400">لا يوجد نقاط في هذا المستوى</p>';
+            document.getElementById('comments-critical').innerHTML = htmlCritical || '<p class="text-sm text-slate-400">لا يوجد نقاط في هذا المستوى</p>';
+
+            if(radarChartInstance) radarChartInstance.destroy();
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            radarChartInstance = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'مستوى التقييم',
+                        data: dataPts,
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        pointBackgroundColor: 'rgba(59, 130, 246, 1)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: { ticks: { min: 0, max: 4, stepSize: 1, display: false }, pointLabels: {font: {family:'Cairo', size:10}} }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+
+            document.getElementById('profileModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('profileModal').classList.add('hidden');
+            currentProfileId = null;
+        }
+    </script>
+</body>
+</html>
