@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تحليل بيانات الحضور والإنتاجية الذكية</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Cairo -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0b0b0d;
+            --card-bg: rgba(255, 255, 255, 0.02);
+            --card-border: rgba(255, 255, 255, 0.06);
+            --primary: #4285f4;
+            --secondary: #a364ff;
+            --success: #34a853;
+            --warning: #fbbc05;
+            --danger: #ea4335;
+            --primary-gradient: linear-gradient(135deg, #4285f4, #a364ff);
+        }
+
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: var(--bg-color);
+            color: #f3f4f6;
+            margin: 0;
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* تأثير التوهج التفاعلي الفخم المتتبع للماوس */
+        #glow-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 0;
+            background: radial-gradient(circle 500px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(163, 100, 255, 0.09), rgba(66, 133, 244, 0.06), transparent 50%);
+            transition: background 0.1s ease-out;
+        }
+
+        /* كروت زجاجية شفافة */
+        .glass-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-radius: 1.5rem;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(66, 133, 244, 0.05);
+        }
+
+        /* خط التوهج العلوي لبعض الكروت */
+        .glow-border-top::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: var(--primary-gradient);
+            opacity: 0.7;
+        }
+
+        /* زر رئيسي فخم جداً */
+        .btn-gemini {
+            background: var(--primary-gradient);
+            background-size: 200% 200%;
+            animation: gradientMove 6s ease infinite;
+            color: white;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(163, 100, 255, 0.25);
+        }
+
+        .btn-gemini:hover {
+            box-shadow: 0 6px 25px rgba(163, 100, 255, 0.45);
+            transform: translateY(-2px);
+        }
+
+        @keyframes gradientMove {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* تخصيص شريط التمرير */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0b0b0d; }
+        ::-webkit-scrollbar-thumb { background: #2c2c35; border-radius: 99px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4a4a5a; }
+
+        /* تأثيرات الإظهار */
+        .fade-in-section {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+        }
+        
+        .fade-in-section.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* تبويبات الفلترة النشطة */
+        .filter-tab {
+            transition: all 0.3s ease;
+        }
+        .filter-tab.active {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
+        /* خطوط تفصيلية لليوم (Timeline Block) */
+        .timeline-bar {
+            background: linear-gradient(90deg, #1e1e24 0%, #2a2a35 100%);
+            border-radius: 99px;
+            position: relative;
+            height: 24px;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="p-0 m-0">
+
+    <!-- خلفية تفاعلية -->
+    <div id="glow-bg"></div>
+
+    <div class="main-container max-w-[1400px] mx-auto p-4 md:p-8 relative z-10 flex flex-col gap-8">
+        
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-center gap-6 mt-4 pb-6 border-b border-white/5">
+            <div class="flex items-center gap-4">
+                <div class="p-3.5 bg-white/5 rounded-2xl border border-white/10 shadow-lg shadow-purple-500/5">
+                    <i data-lucide="sparkles" class="w-8 h-8 text-purple-400 animate-pulse"></i>
+                </div>
+                <div>
+                    <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">نظام تحليل الحضور </h1>
+                    <p class="text-sm text-gray-400 mt-1">نسخة مخصصة لقراءة (الصافي بعد التعويض) مباشرة وفلترة الأذونات بحسب النطاق الزمني المحدد.</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="px-4 py-2 bg-purple-500/10 border border-purple-500/20 text-purple-300 rounded-full text-xs font-semibold flex items-center gap-2">
+                    <span class="w-2 h-2 bg-purple-400 rounded-full animate-ping"></span>
+                    إصدار 4.0
+                </span>
+            </div>
+        </header>
+
+        <!-- Input Box Area -->
+        <section class="glass-card p-6 md:p-8 glow-border-top">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="clipboard-paste" class="w-5 h-5 text-purple-400"></i>
+                    <h2 class="text-lg font-bold text-gray-200">الصق البيانات المنسوخة من النظام مباشرة</h2>
+                </div>
+                <button onclick="loadSampleData()" class="text-xs text-purple-400 hover:text-purple-300 transition-colors underline flex items-center gap-1">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> 
+                </button>
+            </div>
+            
+            <textarea id="dataInput" class="w-full h-44 rounded-2xl p-4 text-sm md:text-base font-mono resize-none" placeholder="الصق هنا... سيتم تجاهل التشكيل وتحديد أوقات المهام والتعويض بشكل تلقائي."></textarea>
+            
+            <div class="mt-3">
+                <button onclick="togglePermissionsInput()" class="text-sm text-amber-400 hover:text-amber-300 font-bold flex items-center gap-2 mb-2 transition-all">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i> إضافة بيانات المأموريات والأذونات (اختياري)
+                </button>
+                <div id="permissions-container" class="hidden transition-all duration-300">
+                    <textarea id="permissionsInput" class="w-full h-32 rounded-xl p-4 text-sm md:text-base font-mono resize-none border border-amber-500/20 bg-black/40 text-amber-50" placeholder="الصق جدول المأموريات والأذونات هنا... سيقوم النظام بمطابقتها وفلترتها تلقائياً حسب تواريخ جدول الحضور المستهدف فقط."></textarea>
+                </div>
+            </div>
+
+            <div class="mt-4 flex flex-col md:flex-row justify-between items-center gap-4">
+                <button onclick="processAndAnalyze()" class="btn-gemini w-full md:w-auto px-10 py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2">
+                    <i data-lucide="zap" class="w-5 h-5"></i>
+                    بناء داشبورد التحليل التفاعلي
+                </button>
+                <p id="error-alert" class="text-red-400 text-sm hidden font-semibold flex items-center gap-2">
+                    <i data-lucide="alert-circle" class="w-4 h-4"></i> لم نكتشف أي بيانات حقيقية صالحة! يرجى التأكد من التنسيق.
+                </p>
+            </div>
+        </section>
+
+        <!-- DASHBOARD CONTAINER -->
+        <main id="dashboard-section" class="fade-in-section space-y-8 hidden">
+            
+            <!-- Employee Info card & High level Summary Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                
+                <!-- الرصيد النهائي كلي -->
+                <div class="glass-card p-6 flex flex-col justify-between col-span-1 lg:col-span-2 relative">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <span class="text-gray-400 text-xs font-semibold uppercase tracking-wider">ميزان الساعات الكلي (الصافي الفعلي بالنظام)</span>
+                            <h3 class="text-3xl font-extrabold mt-1" id="res-balance-status">---</h3>
+                        </div>
+                        <div id="balance-badge" class="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                            <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+                            <span>--</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 space-y-3">
+                        <div class="flex justify-between text-xs text-gray-400">
+                            <span>الصافي بعد التعويض: <strong class="text-white" id="stat-actual-hours">0h</strong></span>
+                            <span>الدوام المفترض لليوم: <strong class="text-white" id="stat-required-hours">0h</strong></span>
+                        </div>
+                        <!-- Progress bar -->
+                        <div class="w-full bg-white/5 h-2 rounded-full overflow-hidden">
+                            <div id="balance-progress" class="h-full bg-purple-500 transition-all duration-1000" style="width: 0%"></div>
+                        </div>
+                        <p class="text-xs text-gray-500 leading-relaxed" id="balance-explainer">يتم الحساب بالاعتماد الكلي على عمود (الصافي بعد التعويض) الخاص بنظام الموارد البشرية.</p>
+                    </div>
+                </div>
+
+                <!-- إحصائية الحالات الاستثنائية -->
+                <div class="glass-card p-6 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-gray-400 text-xs font-semibold uppercase tracking-wider">الحالات غير المألوفة (الشاذة)</span>
+                            <i data-lucide="shield-alert" class="w-5 h-5 text-orange-400"></i>
+                        </div>
+                        <div class="text-4xl font-black text-orange-400" id="stat-anomalies-count">0</div>
+                        <p class="text-xs text-gray-500 mt-2">أيام تم فيها رصد تأخر صباحي أو خروج متأخر جداً.</p>
+                    </div>
+                    <div class="text-xs text-orange-300 font-semibold bg-orange-500/10 px-3 py-2 rounded-lg mt-4 flex items-center gap-2">
+                        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                        <span id="anomaly-highlight">اضغط على أي يوم لرؤية خط الإنتاجية!</span>
+                    </div>
+                </div>
+
+                <!-- نسبة الالتزام والانتظام -->
+                <div class="glass-card p-6 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-gray-400 text-xs font-semibold uppercase tracking-wider">معدل الانضباط (تغطية الهدف)</span>
+                            <i data-lucide="award" class="w-5 h-5 text-emerald-400"></i>
+                        </div>
+                        <div class="text-4xl font-black text-emerald-400" id="stat-commitment-rate">0%</div>
+                        <p class="text-xs text-gray-500 mt-2">نسبة الأيام التي قمت فيها بتغطية أو تجاوز الساعات المطلوبة (بالنظام).</p>
+                    </div>
+                    <div class="text-xs text-gray-400 mt-4 pt-4 border-t border-white/5 flex justify-between">
+                        <span>أيام الالتزام: <strong class="text-emerald-400" id="stat-commitment-days">0</strong></span>
+                        <span>إجمالي الأيام: <strong class="text-white" id="stat-total-working-days">0</strong></span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- CHARTS VISUAL SECTION -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Chart 1: Daily active hours -->
+                <div class="glass-card p-5 lg:col-span-2 flex flex-col justify-between min-h-[400px]">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-gray-200 flex items-center gap-2">
+                            <i data-lucide="bar-chart-3" class="w-4 h-4 text-purple-400"></i>
+                            تحليل ساعات (الصافي بعد التعويض) اليومية
+                        </h3>
+                        <span class="text-xs text-gray-500">دقة نظام </span>
+                    </div>
+                    <div class="relative w-full flex-grow flex items-center justify-center">
+                        <canvas id="dailyHoursChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 2: Cumulative Balance Trend & Distribution -->
+                <div class="glass-card p-5 flex flex-col justify-between min-h-[400px]">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-gray-200 flex items-center gap-2">
+                            <i data-lucide="pie-chart" class="w-4 h-4 text-purple-400"></i>
+                            توزيع جودة الدوام
+                        </h3>
+                    </div>
+                    <div class="relative w-full flex-grow flex items-center justify-center">
+                        <canvas id="dayDistributionChart"></canvas>
+                    </div>
+                    <div class="text-center text-xs text-gray-500 mt-4 leading-relaxed">
+                        الدوام الرشيق والملتزم يحافظ على مؤشرات الأداء خضراء دائماً.
+                    </div>
+                </div>
+            </div>
+
+            <!-- INTERACTIVE DETAILED DRILLDOWN & EXPLORER -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                <!-- Table Section (Left Side) - colspan 7 -->
+                <div class="glass-card p-6 lg:col-span-7 flex flex-col gap-4">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h3 class="font-extrabold text-xl text-gray-200 flex items-center gap-2">
+                                <i data-lucide="list-filter" class="w-5 h-5 text-purple-400"></i>
+                                سجل الأيام والتحليل المفصل
+                            </h3>
+                            <p class="text-xs text-gray-500 mt-1">اضغط على أي يوم لعرض الخط الزمني والأوقات الاستثنائية.</p>
+                        </div>
+                    </div>
+
+                    <!-- Filter Tabs -->
+                    <div class="flex flex-wrap gap-2 py-2 border-b border-white/5" id="filter-container">
+                        <button onclick="filterDays('all')" class="filter-tab active text-xs px-3 py-1.5 rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 text-gray-300">
+                            كل الأيام (<span id="count-all">0</span>)
+                        </button>
+                        <button onclick="filterDays('short')" class="filter-tab text-xs px-3 py-1.5 rounded-lg border border-white/5 bg-transparent hover:bg-white/5 text-gray-300">
+                            عجز (<span id="count-short">0</span>)
+                        </button>
+                        <button onclick="filterDays('surplus')" class="filter-tab text-xs px-3 py-1.5 rounded-lg border border-white/5 bg-transparent hover:bg-white/5 text-gray-300">
+                            رصيد إضافي (<span id="count-surplus">0</span>)
+                        </button>
+                        <button onclick="filterDays('anomaly')" class="filter-tab text-xs px-3 py-1.5 rounded-lg border border-white/5 bg-transparent hover:bg-white/5 text-gray-300 text-orange-400 border-orange-500/10">
+                            حالات شاذة (<span id="count-anomaly">0</span>)
+                        </button>
+                    </div>
+
+                    <!-- Search -->
+                    <div class="relative">
+                        <input type="text" id="table-search" oninput="searchTable()" class="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-purple-500 text-gray-200" placeholder="ابحث بالتاريخ، اليوم، أو الحالة الاستثنائية..." />
+                        <i data-lucide="search" class="w-4 h-4 text-gray-500 absolute left-3 top-3"></i>
+                    </div>
+
+                    <!-- Table container -->
+                    <div class="overflow-x-auto max-h-[500px] overflow-y-auto">
+                        <table class="w-full text-right text-xs md:text-sm">
+                            <thead>
+                                <tr class="text-gray-500 border-b border-white/5">
+                                    <th class="py-3 px-4 font-semibold">اليوم والتاريخ</th>
+                                    <th class="py-3 px-4 font-semibold">الصافي بالنظام</th>
+                                    <th class="py-3 px-4 font-semibold text-center">جلسات البصمة</th>
+                                    <th class="py-3 px-4 font-semibold text-center">الرصيد النهائي</th>
+                                    <th class="py-3 px-4 font-semibold text-left">ملاحظات ذكية</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendance-rows" class="divide-y divide-white/5 text-gray-300">
+                                <!-- سيتم تعبئة الأيام ديناميكياً -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Interactive Day Explorer (Right Side Panel) - colspan 5 -->
+                <div class="glass-card p-6 lg:col-span-5 flex flex-col gap-6 sticky top-6" id="day-explorer-panel">
+                    <div class="border-b border-white/5 pb-4">
+                        <span class="text-xs text-purple-400 font-semibold uppercase tracking-wider block mb-1">المستكشف التفصيلي النشط</span>
+                        <h3 class="text-2xl font-black text-white" id="exp-day-title">اختر يوماً لاستكشافه</h3>
+                        <p class="text-xs text-gray-500 mt-1" id="exp-day-subtitle">سيتم عرض بيانات النظام الدقيقة والفترات الزمنية للبصمة.</p>
+                    </div>
+
+                    <!-- Explorer Inner Details -->
+                    <div id="explorer-content" class="space-y-6 hidden">
+                        <!-- Quick Stats Indicators inside Explorer -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-white/5 rounded-xl p-3.5 border border-white/5">
+                                <span class="text-gray-500 text-[10px] uppercase block">أول دخول (فيزيائي)</span>
+                                <span class="text-lg font-bold text-white block mt-0.5" id="exp-first-in">--:--</span>
+                            </div>
+                            <div class="bg-white/5 rounded-xl p-3.5 border border-white/5">
+                                <span class="text-gray-500 text-[10px] uppercase block">آخر خروج (فيزيائي)</span>
+                                <span class="text-lg font-bold text-white block mt-0.5" id="exp-last-out">--:--</span>
+                            </div>
+                        </div>
+
+                        <!-- Visual Day Timeline Bar -->
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-semibold text-gray-300 flex items-center gap-1">
+                                    <i data-lucide="map" class="w-3.5 h-3.5 text-purple-400"></i>
+                                    أوقات التواجد الفعلي (07:00 ص - 07:00 م)
+                                </span>
+                            </div>
+                            <!-- Real Timeline Representation -->
+                            <div class="timeline-bar w-full" id="exp-timeline-visual">
+                                <!-- سيتم إضافة الفترات ديناميكياً -->
+                            </div>
+                            <div class="flex items-center gap-4 text-[10px] text-gray-500 mt-2">
+                                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 block"></span> عمل فعلي</span>
+                                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 block shadow-[0_0_8px_rgba(251,191,36,0.5)]"></span> إذن / مأمورية</span>
+                            </div>
+                        </div>
+
+                        <!-- Timeline intervals detailed log -->
+                        <div class="space-y-3">
+                            <h4 class="text-xs font-semibold text-gray-400 flex items-center gap-1">
+                                <i data-lucide="history" class="w-3.5 h-3.5"></i>
+                                البصمات المسجلة لهذا اليوم:
+                            </h4>
+                            <div class="space-y-2 max-h-40 overflow-y-auto pr-1" id="exp-intervals-list">
+                                <!-- قائمة فترات البصمة بالتوقيت والمدة -->
+                            </div>
+                        </div>
+
+                        <!-- Warnings & Anomalies detected specifically for this day -->
+                        <div class="space-y-2">
+                            <h4 class="text-xs font-semibold text-gray-400">ملاحظات النظام الذكي:</h4>
+                            <div class="space-y-2" id="exp-anomalies-list">
+                                <!-- التحليلات التفصيلية والمشاكل في هذا اليوم -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Placeholder inside explorer -->
+                    <div id="explorer-placeholder" class="py-16 text-center text-gray-500 space-y-3">
+                        <i data-lucide="mouse-pointer-click" class="w-12 h-12 mx-auto text-purple-400/30 animate-bounce"></i>
+                        <p class="text-sm">قم بالضغط على أي سطر في الجدول لعرض لوحة القيادة التفصيلية والخط الزمني للبصمة لهذا اليوم فوراً!</p>
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+        
+    </div>
+
+    <!-- Script Analytics Engine -->
+    <script>
+        // تفعيل أيقونات Lucide
+        lucide.createIcons();
+
+        // تفعيل تأثير الماوس في الخلفية
+        document.addEventListener('mousemove', (e) => {
+            const x = (e.clientX / window.innerWidth) * 100;
+            const y = (e.clientY / window.innerHeight) * 100;
+            document.documentElement.style.setProperty('--mouse-x', `${x}%`);
+            document.documentElement.style.setProperty('--mouse-y', `${y}%`);
+        });
+
+        let processedDays = []; 
+        let dailyHoursChartInstance = null;
+        let dayDistributionChartInstance = null;
+        let activeFilter = 'all';
+
+        const sampleRawData = `اليوم التاريخ الدخــول الخــروج
+الثَلاثاء 21/04/2026 12:44:00 16:48:00 0.00 4.07 7.68 7.68 8.00 -0.32 0.54 0.00 8.22 0.00 0.00`;
+
+        function loadSampleData() {
+            document.getElementById('dataInput').value = sampleRawData;
+        }
+
+        function parseTimeToMinutes(timeStr) {
+            if (!timeStr) return 0;
+            const parts = timeStr.split(':');
+            return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        }
+
+        // صياغة الدقائق
+        function formatMinutesToHours(mins) {
+            const h = Math.floor(Math.abs(mins) / 60);
+            const m = Math.round(Math.abs(mins) % 60);
+            const sign = mins < 0 ? '-' : '';
+            return `${sign}${h} س و ${m} د`;
+        }
+
+        // صياغة للكسور العشرية
+        function formatDecimalHoursText(decimal) {
+            if(decimal === undefined || isNaN(decimal)) return "0.0 س";
+            return `${decimal.toFixed(2)} س`;
+        }
+        
+        function formatMinutesToHoursBrief(mins) {
+            const h = (Math.abs(mins) / 60).toFixed(2);
+            return `${h} س`;
+        }
+
+        // إزالة التشكيل من الحروف العربية لحل مشكلة "اليوم غير محدد"
+        function removeDiacritics(str) {
+            return str.replace(/[\u064B-\u065F\u0670]/g, '');
+        }
+
+        function togglePermissionsInput() {
+            const container = document.getElementById('permissions-container');
+            container.classList.toggle('hidden');
+        }
+
+        function normalizeDate(dStr) {
+            let parts = dStr.split('/');
+            if(parts.length !== 3) return dStr;
+            let m = parts[0].padStart(2, '0');
+            let d = parts[1].padStart(2, '0');
+            let y = parts[2];
+            return `${d}/${m}/${y}`;
+        }
+
+        function getDatesBetween(d1Str, d2Str) {
+            let dates = [];
+            let curr = new Date(d1Str);
+            let end = new Date(d2Str);
+            if (curr > end) { let temp = curr; curr = end; end = temp; }
+            while (curr <= end) {
+                let d = String(curr.getDate()).padStart(2, '0');
+                let m = String(curr.getMonth() + 1).padStart(2, '0');
+                let y = curr.getFullYear();
+                dates.push(`${d}/${m}/${y}`);
+                curr.setDate(curr.getDate() + 1);
+            }
+            return dates;
+        }
+
+        // دالة للتحقق مما إذا كان التاريخ يقع داخل النطاق الزمني لجدول الحضور
+        function isDateInRange(targetDateStr, startDateStr, endDateStr) {
+            const parseDate = (dStr) => {
+                const parts = dStr.split('/');
+                return new Date(parts[2], parts[1] - 1, parts[0]);
+            };
+            const target = parseDate(targetDateStr);
+            const start = parseDate(startDateStr);
+            const end = parseDate(endDateStr);
+            return target >= start && target <= end;
+        }
+
+        // المحرك الذكي الجديد 
+        function processAndAnalyze() {
+            const text = document.getElementById('dataInput').value;
+            const errorAlert = document.getElementById('error-alert');
+            const dashboardSection = document.getElementById('dashboard-section');
+
+            if (!text.trim()) {
+                errorAlert.classList.remove('hidden');
+                return;
+            }
+
+            const dateRegex = /\b(\d{2}\/\d{2}\/\d{4})\b/;
+            const timeRegex = /\b(\d{2}:\d{2}:\d{2})\b/g;
+            // مصفوفة أيام الأسبوع بدون تشكيل
+            const daysOfWeekList = ['الأحد', 'الاحد', 'الإثنين', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الاربعاء', 'الخميس', 'الجمعة', 'السبت'];
+            
+            const lines = text.split('\n');
+            let dailyMap = {}; 
+            let dateObjects = []; // سنستخدمها لتحديد نطاق التواريخ الفعلي لجدول الحضور
+
+            lines.forEach(line => {
+                const cleanLine = removeDiacritics(line); // إزالة التشكيل فوراً
+                
+                const dateMatch = cleanLine.match(dateRegex);
+                const times = [...cleanLine.matchAll(timeRegex)].map(m => m[1]);
+                
+                // تحديد اليوم بدقة بعد إزالة التشكيل
+                let dayName = "غير محدد";
+                for (let d of daysOfWeekList) {
+                    if (cleanLine.includes(d)) {
+                        dayName = d;
+                        break;
+                    }
+                }
+                
+                const hasStar = line.includes('⭐') || line.includes('★') || line.includes('*');
+
+                if (dateMatch) {
+                    const date = dateMatch[1];
+                    dateObjects.push(date);
+                    
+                    if (!dailyMap[date]) {
+                        dailyMap[date] = {
+                            date: date,
+                            dayName: dayName,
+                            intervals: [],
+                            permissions: [],
+                            isFullDayMission: false,
+                            isWeekend: false,
+                            systemTargetHours: 0,
+                            systemNetHours: 0,
+                            personalPerm: 0,
+                            missionPerm: 0,
+                            hasSystemData: false
+                        };
+                        
+                        if (dayName.includes('الجمعة') || dayName.includes('السبت')) {
+                            dailyMap[date].isWeekend = true;
+                        }
+                    }
+                    
+                    if (hasStar) dailyMap[date].isFullDayMission = true;
+
+                    if (times.length >= 2) {
+                        const checkIn = times[0];
+                        const checkOut = times[1];
+                        let duration = parseTimeToMinutes(checkOut) - parseTimeToMinutes(checkIn);
+                        if (duration < 0) duration = 0; 
+                        dailyMap[date].intervals.push({ in: checkIn, out: checkOut, duration: duration });
+                    }
+
+                    // التقاط الأرقام العشرية من السطر
+                    let textNoDates = cleanLine.replace(/\b\d{2}:\d{2}:\d{2}\b/g, '').replace(/\b\d{2}\/\d{2}\/\d{4}\b/g, '');
+                    
+                    const decimalRegex = /-?\d+\.\d+-?/g;
+                    let matches = textNoDates.match(decimalRegex);
+                    
+                    if (matches && matches.length >= 2) {
+                        let decimals = matches.map(m => {
+                            if (m.endsWith('-')) return -parseFloat(m.slice(0, -1));
+                            return parseFloat(m);
+                        });
+
+                        // استخراج الدوام المفترض
+                        if (decimals.length >= 5) {
+                            let target = decimals[4];
+                            if (target > dailyMap[date].systemTargetHours) dailyMap[date].systemTargetHours = target;
+                        }
+                        
+                        // استخراج الصافي بعد التعويض
+                        if (decimals.length >= 9) {
+                            let net = decimals[8];
+                            if (net > dailyMap[date].systemNetHours) dailyMap[date].systemNetHours = net;
+                            dailyMap[date].hasSystemData = true;
+                        }
+                        
+                        // استخراج الاستئذان الشخصي (إضافة جديدة)
+                        if (decimals.length >= 10) {
+                            let pPerm = decimals[9];
+                            if (pPerm > dailyMap[date].personalPerm) dailyMap[date].personalPerm = pPerm;
+                        }
+                        
+                        // استخراج مهام العمل (إضافة جديدة)
+                        if (decimals.length >= 11) {
+                            let mPerm = decimals[10];
+                            if (mPerm > dailyMap[date].missionPerm) dailyMap[date].missionPerm = mPerm;
+                        }
+                    }
+                }
+            });
+
+            // تحديد الحدود الزمنية الفعلية لجدول الحضور المستهدف
+            let startDate = "";
+            let endDate = "";
+            if (dateObjects.length > 0) {
+                const sortedDates = [...dateObjects].sort((a,b) => {
+                    const d1 = a.split('/').reverse().join('');
+                    const d2 = b.split('/').reverse().join('');
+                    return d1.localeCompare(d2);
+                });
+                startDate = sortedDates[0];
+                endDate = sortedDates[sortedDates.length - 1];
+            }
+
+            // معالجة بيانات المأموريات والأذونات مع فلترتها الذكية بالنطاق الزمني لجدول الحضور
+            const permText = document.getElementById('permissionsInput') ? document.getElementById('permissionsInput').value : '';
+            if (permText.trim() && startDate && endDate) {
+                const permLines = permText.split('\n');
+                permLines.forEach(line => {
+                    const dateMatches = [...line.matchAll(/\b(\d{1,2}\/\d{1,2}\/\d{4})\b/g)].map(m => m[1]);
+                    const timeMatches = [...line.matchAll(/\b(\d{2}:\d{2}:\d{2})\b/g)].map(m => m[1]);
+                    let isApproved = line.includes('موافق');
+
+                    if (isApproved) {
+                        if (dateMatches.length === 1 && timeMatches.length >= 2) {
+                            // إذن ساعات
+                            let date = normalizeDate(dateMatches[0]);
+                            // نتحقق من أن تاريخ الإذن يقع داخل حدود جدول الحضور المستورد
+                            if (isDateInRange(date, startDate, endDate) && dailyMap[date]) {
+                                let t1 = parseTimeToMinutes(timeMatches[0]);
+                                let t2 = parseTimeToMinutes(timeMatches[1]);
+                                let inTime = t1 < t2 ? timeMatches[0] : timeMatches[1];
+                                let outTime = t1 < t2 ? timeMatches[1] : timeMatches[0];
+                                let type = line.includes("مهمة") ? "مهمة عمل" : (line.includes("شخصي") ? "إذن شخصي" : "إذن");
+
+                                dailyMap[date].permissions.push({ in: inTime, out: outTime, type: type });
+                            }
+                        } else if (dateMatches.length >= 2) {
+                            // مأمورية أيام متتالية
+                            let datesArr = getDatesBetween(dateMatches[0], dateMatches[1]);
+                            datesArr.forEach(d => {
+                                // نتحقق من النطاق الزمني لكل يوم في المأمورية
+                                if (isDateInRange(d, startDate, endDate) && dailyMap[d]) {
+                                    dailyMap[d].isFullDayMission = true;
+                                    dailyMap[d].systemNetHours = Math.max(dailyMap[d].systemNetHours, dailyMap[d].systemTargetHours); 
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+
+            const allDates = Object.keys(dailyMap).sort((a,b) => {
+                const d1 = a.split('/').reverse().join('');
+                const d2 = b.split('/').reverse().join('');
+                return d1.localeCompare(d2);
+            });
+
+            if (allDates.length === 0) {
+                errorAlert.classList.remove('hidden');
+                dashboardSection.classList.add('hidden');
+                return;
+            }
+
+            errorAlert.classList.add('hidden');
+            processedDays = [];
+
+            allDates.forEach(date => {
+                const dayObj = dailyMap[date];
+                let anomalies = [];
+                let firstInMins = 24 * 60;
+                let lastOutMins = 0;
+
+                dayObj.intervals.forEach(interval => {
+                    const inMins = parseTimeToMinutes(interval.in);
+                    const outMins = parseTimeToMinutes(interval.out);
+                    if (inMins < firstInMins) firstInMins = inMins;
+                    if (outMins > lastOutMins) lastOutMins = outMins;
+                });
+
+                // رصد السلوكيات 
+                if (!dayObj.isWeekend && dayObj.intervals.length > 0) {
+                    if (firstInMins > 9 * 60) anomalies.push("تأخير صباحي (بعد 9:00ص)");
+                    if (firstInMins < 7 * 60 + 40) anomalies.push("حضور مبكر ممتاز (قبل 7:40ص)");
+                    if (lastOutMins > 17 * 60 + 30) anomalies.push("خروج مسائي متأخر جداً (تفاني)");
+                }
+
+                // حساب صافي الرصيد الشامل (الصافي + الأذونات)
+                let totalEffectiveHours = dayObj.systemNetHours + dayObj.personalPerm + dayObj.missionPerm;
+                let dailyBalanceMins = Math.round((totalEffectiveHours - dayObj.systemTargetHours) * 60);
+                
+                // تصفير العجز إذا كان اليوم مأمورية كاملة أو إجازة موثقة بنجمة
+                if (dayObj.isFullDayMission && dailyBalanceMins < 0) {
+                    dailyBalanceMins = 0; 
+                }
+
+                processedDays.push({
+                    date: dayObj.date,
+                    dayName: dayObj.dayName,
+                    intervals: dayObj.intervals,
+                    permissions: dayObj.permissions,
+                    isFullDayMission: dayObj.isFullDayMission,
+                    systemNetHours: dayObj.systemNetHours,
+                    personalPerm: dayObj.personalPerm,
+                    missionPerm: dayObj.missionPerm,
+                    totalEffectiveHours: totalEffectiveHours,
+                    systemTargetHours: dayObj.systemTargetHours,
+                    balanceMinutes: dailyBalanceMins,
+                    isWeekend: dayObj.isWeekend,
+                    anomalies: anomalies,
+                    firstIn: firstInMins === 24 * 60 ? null : firstInMins,
+                    lastOut: lastOutMins === 0 ? null : lastOutMins
+                });
+            });
+
+            updateGlobalStats();
+            renderDashboardCharts();
+            filterDays('all');
+
+            dashboardSection.classList.remove('hidden');
+            dashboardSection.classList.add('visible');
+            setTimeout(() => {
+                dashboardSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 150);
+        }
+
+        function updateGlobalStats() {
+            let totalNetMins = 0;
+            let totalReqMins = 0;
+            let totalAnomaliesCount = 0;
+            let totalWorkingDaysParsed = 0;
+            let committedDaysCount = 0;
+
+            let countShort = 0;
+            let countSurplus = 0;
+            let countAnomaly = 0;
+
+            processedDays.forEach(day => {
+                const dayEffMins = Math.round(day.totalEffectiveHours * 60);
+                const dayReqMins = Math.round(day.systemTargetHours * 60);
+                
+                totalNetMins += dayEffMins;
+                totalReqMins += dayReqMins;
+                totalAnomaliesCount += day.anomalies.length;
+                
+                if (!day.isWeekend) {
+                    totalWorkingDaysParsed++;
+                    if (day.totalEffectiveHours >= day.systemTargetHours) {
+                        committedDaysCount++;
+                    }
+                }
+
+                if (day.balanceMinutes < 0 && !day.isWeekend) countShort++;
+                if (day.balanceMinutes > 0) countSurplus++;
+                if (day.anomalies.length > 0) countAnomaly++;
+            });
+
+            document.getElementById('count-all').innerText = processedDays.length;
+            document.getElementById('count-short').innerText = countShort;
+            document.getElementById('count-surplus').innerText = countSurplus;
+            document.getElementById('count-anomaly').innerText = countAnomaly;
+
+            const netBalanceMins = totalNetMins - totalReqMins;
+            const balanceStatusEl = document.getElementById('res-balance-status');
+            const balanceBadgeEl = document.getElementById('balance-badge');
+            
+            if (netBalanceMins >= 0) {
+                balanceStatusEl.innerText = `+${formatMinutesToHours(netBalanceMins)} لك`;
+                balanceStatusEl.className = "text-3xl font-extrabold mt-1 text-emerald-400";
+                balanceBadgeEl.className = "px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+                balanceBadgeEl.innerHTML = `<i data-lucide="trending-up" class="w-3.5 h-3.5"></i> رصيد أمان أخضر`;
+            } else {
+                balanceStatusEl.innerText = `${formatMinutesToHours(netBalanceMins)} عجز`;
+                balanceStatusEl.className = "text-3xl font-extrabold mt-1 text-red-400";
+                balanceBadgeEl.className = "px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-red-500/10 text-red-400 border border-red-500/20";
+                balanceBadgeEl.innerHTML = `<i data-lucide="trending-down" class="w-3.5 h-3.5"></i> مطلوب تعويضها`;
+            }
+
+            document.getElementById('stat-actual-hours').innerText = formatDecimalHoursText(totalNetMins/60);
+            document.getElementById('stat-required-hours').innerText = formatDecimalHoursText(totalReqMins/60);
+            document.querySelector('#stat-actual-hours').previousSibling.textContent = "الصافي + الأذونات: ";
+            
+            const percentageProgress = Math.min((totalNetMins / (totalReqMins || 1)) * 100, 100);
+            document.getElementById('balance-progress').style.width = `${percentageProgress}%`;
+            document.getElementById('balance-explainer').innerText = "تم دمج (الصافي بعد التعويض) + (أذونات مهام العمل والشخصية) لحساب رصيدك الحقيقي بدقة متناهية!";
+
+            document.getElementById('stat-anomalies-count').innerText = totalAnomaliesCount;
+            const commitmentRate = totalWorkingDaysParsed > 0 ? Math.round((committedDaysCount / totalWorkingDaysParsed) * 100) : 0;
+            document.getElementById('stat-commitment-rate').innerText = `${commitmentRate}%`;
+            document.getElementById('stat-commitment-days').innerText = committedDaysCount;
+            document.getElementById('stat-total-working-days').innerText = totalWorkingDaysParsed;
+
+            lucide.createIcons();
+        }
+
+        function renderDashboardCharts() {
+            const labels = processedDays.map(d => `${d.dayName} (${d.date.substring(0,5)})`);
+            const actualHoursData = processedDays.map(d => d.totalEffectiveHours.toFixed(2));
+            const requiredHoursData = processedDays.map(d => d.systemTargetHours);
+
+            if (dailyHoursChartInstance) dailyHoursChartInstance.destroy();
+            const ctx1 = document.getElementById('dailyHoursChart').getContext('2d');
+            
+            dailyHoursChartInstance = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'إجمالي الساعات (الصافي + الأذونات)',
+                            data: actualHoursData,
+                            backgroundColor: processedDays.map(d => d.isWeekend ? 'rgba(163, 100, 255, 0.4)' : (d.totalEffectiveHours >= d.systemTargetHours ? 'rgba(52, 168, 83, 0.65)' : 'rgba(234, 67, 53, 0.65)')),
+                            borderColor: processedDays.map(d => d.isWeekend ? '#a364ff' : (d.totalEffectiveHours >= d.systemTargetHours ? '#34a853' : '#ea4335')),
+                            borderWidth: 1.5,
+                            borderRadius: 6,
+                            barPercentage: 0.6
+                        },
+                        {
+                            label: 'الهدف اليومي بالنظام',
+                            data: requiredHoursData,
+                            type: 'line',
+                            borderColor: 'rgba(255, 255, 255, 0.35)',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#abaeb3', font: { family: 'Cairo', size: 11 } } }
+                    },
+                    scales: {
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                            ticks: { color: '#888', font: { family: 'Cairo' } },
+                            title: { display: true, text: 'ساعات العمل بالكسور العشرية', color: '#999', font: { family: 'Cairo' } }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#888', font: { family: 'Cairo', size: 9 }, maxRotation: 45, minRotation: 45 }
+                        }
+                    }
+                }
+            });
+
+            let fullDaysCount = 0, shortDaysCount = 0, holidayDaysCount = 0;
+            processedDays.forEach(d => {
+                if (d.isWeekend) holidayDaysCount++;
+                else if (d.totalEffectiveHours >= d.systemTargetHours) fullDaysCount++;
+                else shortDaysCount++;
+            });
+
+            if (dayDistributionChartInstance) dayDistributionChartInstance.destroy();
+            const ctx2 = document.getElementById('dayDistributionChart').getContext('2d');
+            dayDistributionChartInstance = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: ['غطيت الهدف بالنظام', 'أيام بها عجز', 'أيام عطلة'],
+                    datasets: [{
+                        data: [fullDaysCount, shortDaysCount, holidayDaysCount],
+                        backgroundColor: ['rgba(52, 168, 83, 0.7)', 'rgba(234, 67, 53, 0.7)', 'rgba(66, 133, 244, 0.4)'],
+                        borderColor: ['#34a853', '#ea4335', '#4285f4'],
+                        borderWidth: 1.5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#abaeb3', font: { family: 'Cairo', size: 10 } } } }
+                }
+            });
+        }
+
+        function filterDays(filterType) {
+            activeFilter = filterType;
+            const tabs = document.querySelectorAll('.filter-tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            renderFilteredTable();
+        }
+
+        function renderFilteredTable(searchQuery = "") {
+            const tableBody = document.getElementById('attendance-rows');
+            tableBody.innerHTML = '';
+
+            processedDays.forEach((day, index) => {
+                if (activeFilter === 'short' && (day.isWeekend || day.balanceMinutes >= 0)) return;
+                if (activeFilter === 'surplus' && day.balanceMinutes <= 0) return;
+                if (activeFilter === 'anomaly' && day.anomalies.length === 0) return;
+
+                const searchLower = searchQuery.toLowerCase();
+                const matchedSearch = day.date.includes(searchLower) || 
+                                      day.dayName.toLowerCase().includes(searchLower) ||
+                                      day.anomalies.some(an => an.toLowerCase().includes(searchLower));
+                
+                if (searchQuery && !matchedSearch) return;
+
+                let balanceBadge = '';
+                if (day.isWeekend) {
+                    balanceBadge = `<span class="px-2 py-1 rounded bg-blue-500/10 text-blue-400 font-bold text-xs">عطلة</span>`;
+                } else if (day.balanceMinutes >= 0) {
+                    balanceBadge = `<span class="px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 font-bold text-xs">+${formatMinutesToHoursBrief(day.balanceMinutes)}</span>`;
+                } else {
+                    balanceBadge = `<span class="px-2 py-1 rounded bg-red-500/10 text-red-400 font-bold text-xs">-${formatMinutesToHoursBrief(day.balanceMinutes)}</span>`;
+                }
+
+                let anomaliesTags = '';
+                
+                if (day.isFullDayMission) {
+                    anomaliesTags += `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/15 flex items-center gap-1"><i data-lucide="star" class="w-3 h-3"></i> مأمورية/إجازة</span>`;
+                }
+                if (day.permissions && day.permissions.length > 0) {
+                    anomaliesTags += `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/15 flex items-center gap-1"><i data-lucide="ticket" class="w-3 h-3"></i> إذن مسجل</span>`;
+                }
+
+                day.anomalies.forEach(an => {
+                    let colorClass = "bg-orange-500/10 text-orange-400 border border-orange-500/15";
+                    if (an.includes("ممتاز")) colorClass = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/15";
+                    if (an.includes("تأخير")) colorClass = "bg-red-500/10 text-red-400 border border-red-500/15";
+                    anomaliesTags += `<span class="px-2 py-0.5 rounded text-[10px] font-semibold ${colorClass}">${an}</span>`;
+                });
+                if (!anomaliesTags) anomaliesTags = `<span class="text-gray-600 text-[10px]">-</span>`;
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-white/5 transition-colors cursor-pointer";
+                tr.onclick = () => selectDayToExplore(index);
+                tr.innerHTML = `
+                    <td class="py-4 px-4 font-bold text-white flex flex-col gap-0.5">
+                        <span>${day.dayName}</span>
+                        <span class="text-[10px] text-gray-500">${day.date}</span>
+                    </td>
+                    <td class="py-4 px-4">
+                        <span class="font-bold text-sm text-emerald-400">${formatDecimalHoursText(day.totalEffectiveHours)}</span>
+                        ${(day.personalPerm > 0 || day.missionPerm > 0) ? `<div class="text-[10px] text-amber-400 mt-1 font-bold">شامل ${formatDecimalHoursText(day.personalPerm + day.missionPerm)} أذونات</div>` : ''}
+                    </td>
+                    <td class="py-4 px-4 text-center">
+                        <span class="px-2.5 py-1 rounded-full bg-white/5 text-gray-400 text-xs font-semibold">${day.intervals.length} بصمات</span>
+                    </td>
+                    <td class="py-4 px-4 text-center">
+                        ${balanceBadge}
+                    </td>
+                    <td class="py-4 px-4 text-left">
+                        <div class="flex flex-wrap gap-1.5 justify-start">
+                            ${anomaliesTags}
+                        </div>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function searchTable() {
+            const query = document.getElementById('table-search').value;
+            renderFilteredTable(query);
+        }
+
+        function selectDayToExplore(dayIndex) {
+            const day = processedDays[dayIndex];
+            
+            document.getElementById('explorer-placeholder').classList.add('hidden');
+            const expContent = document.getElementById('explorer-content');
+            expContent.classList.remove('hidden');
+
+            let titleSuffix = day.isFullDayMission ? ' <span class="text-amber-400 text-sm align-middle mx-2 bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20"><i data-lucide="star" class="w-4 h-4 inline fill-current"></i> مأمورية يوم كامل</span>' : '';
+            document.getElementById('exp-day-title').innerHTML = `${day.dayName} - ${day.date}${titleSuffix}`;
+            document.getElementById('exp-day-subtitle').innerHTML = `حسب النظام: الصافي <strong class="text-emerald-400">${day.systemNetHours}</strong> س + الأذونات <strong class="text-amber-400">${(day.personalPerm + day.missionPerm).toFixed(2)}</strong> س - الهدف <strong class="text-gray-300">${day.systemTargetHours}</strong> س`;
+
+            const formatMinsToClock = (mins) => {
+                if (!mins) return "--:--";
+                const h = Math.floor(mins/60).toString().padStart(2, '0');
+                const m = (mins%60).toString().padStart(2, '0');
+                return `${h}:${m}`;
+            };
+            document.getElementById('exp-first-in').innerText = formatMinsToClock(day.firstIn);
+            document.getElementById('exp-last-out').innerText = formatMinsToClock(day.lastOut);
+
+            const intervalsList = document.getElementById('exp-intervals-list');
+            intervalsList.innerHTML = '';
+            
+            if (day.intervals.length === 0) {
+                intervalsList.innerHTML = `<p class="text-xs text-gray-500 italic">لا توجد بصمات فيزيائية مسجلة في هذا اليوم.</p>`;
+            } else {
+                day.intervals.forEach((interval, idx) => {
+                    intervalsList.innerHTML += `
+                        <div class="flex justify-between items-center p-2 bg-white/5 border border-white/5 rounded-lg text-xs">
+                            <span class="text-gray-400 font-semibold">بصمة رقم ${idx + 1}</span>
+                            <div class="flex items-center gap-3">
+                                <span class="text-white font-mono">${interval.in} ➔ ${interval.out}</span>
+                                <span class="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[10px] font-bold">${formatMinutesToHours(interval.duration)}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            const anomaliesList = document.getElementById('exp-anomalies-list');
+            anomaliesList.innerHTML = '';
+            
+            if (day.anomalies.length === 0 && !day.isWeekend) {
+                anomaliesList.innerHTML = `
+                    <div class="p-3 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-2">
+                        <i data-lucide="check-check" class="w-4 h-4"></i>
+                        يوم ممتاز ومثالي! ولا توجد ملاحظات سلبية.
+                    </div>
+                `;
+            } else if (day.isWeekend) {
+                anomaliesList.innerHTML = `
+                    <div class="p-3 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs flex items-center gap-2">
+                        <i data-lucide="coffee" class="w-4 h-4"></i>
+                        يوم راحة أسبوعية.
+                    </div>
+                `;
+            } else {
+                day.anomalies.forEach(an => {
+                    let colorClass = "bg-orange-500/10 text-orange-400 border border-orange-500/20";
+                    let icon = "alert-triangle";
+                    if (an.includes("ممتاز") || an.includes("إضافي")) {
+                        colorClass = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+                        icon = "check-circle";
+                    } else if (an.includes("تأخير")) {
+                        colorClass = "bg-red-500/10 text-red-400 border border-red-500/20";
+                        icon = "clock";
+                    }
+                    
+                    anomaliesList.innerHTML += `
+                        <div class="p-3 rounded-lg ${colorClass} text-xs flex items-center gap-2">
+                            <i data-lucide="${icon}" class="w-4 h-4"></i>
+                            <span>${an}</span>
+                        </div>
+                    `;
+                });
+            }
+
+            const timelineStart = 7 * 60; // 7am
+            const timelineEnd = 19 * 60; // 7pm
+            const timelineTotalDuration = timelineEnd - timelineStart; 
+            
+            const timelineVisual = document.getElementById('exp-timeline-visual');
+            timelineVisual.innerHTML = '';
+
+            if (day.intervals.length > 0) {
+                day.intervals.forEach(interval => {
+                    const startMins = parseTimeToMinutes(interval.in);
+                    const endMins = parseTimeToMinutes(interval.out);
+
+                    const leftPercent = Math.max(0, ((startMins - timelineStart) / timelineTotalDuration) * 100);
+                    const widthPercent = Math.min(100 - leftPercent, ((endMins - startMins) / timelineTotalDuration) * 100);
+
+                    if (widthPercent > 0) {
+                        const segment = document.createElement('div');
+                        segment.className = "absolute top-0 bottom-0 bg-gradient-to-r from-emerald-500 to-teal-400 rounded-md shadow-lg shadow-emerald-500/20 hover:scale-y-110 transition-all cursor-pointer z-10";
+                        segment.style.left = `${leftPercent}%`;
+                        segment.style.width = `${widthPercent}%`;
+                        segment.title = `تواجد فعلي: ${interval.in} - ${interval.out}`;
+                        timelineVisual.appendChild(segment);
+                    }
+                });
+            }
+            
+            if (day.permissions && day.permissions.length > 0) {
+                day.permissions.forEach(perm => {
+                    const startMins = parseTimeToMinutes(perm.in);
+                    const endMins = parseTimeToMinutes(perm.out);
+                    const leftPercent = Math.max(0, ((startMins - timelineStart) / timelineTotalDuration) * 100);
+                    const widthPercent = Math.min(100 - leftPercent, ((endMins - startMins) / timelineTotalDuration) * 100);
+
+                    if (widthPercent > 0) {
+                        const segment = document.createElement('div');
+                        segment.className = "absolute top-0 bottom-0 bg-gradient-to-r from-amber-400 to-yellow-300 rounded-md shadow-[0_0_10px_rgba(251,191,36,0.4)] hover:scale-y-110 transition-all cursor-pointer z-20";
+                        segment.style.left = `${leftPercent}%`;
+                        segment.style.width = `${widthPercent}%`;
+                        segment.title = `${perm.type}: ${perm.in} - ${perm.out}`;
+                        timelineVisual.appendChild(segment);
+                    }
+                });
+            }
+
+            lucide.createIcons();
+        }
+    </script>
+</body>
+</html>
