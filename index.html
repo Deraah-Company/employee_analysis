@@ -72,6 +72,23 @@
         </div>
     </div>
 
+    <!-- Password Modal -->
+    <div id="passwordModal" class="fixed inset-0 z-[100] bg-slate-900 bg-opacity-80 hidden flex justify-center items-center backdrop-blur-sm">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-sm w-full text-center transform transition-all">
+            <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl shadow-inner">
+                <i class="fas fa-lock"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800 mb-2">كلمة المرور مطلوبة</h3>
+            <p class="text-sm text-slate-500 mb-6">يرجى إدخال كلمة المرور لعرض بيانات الأهداف والمبيعات الفعلية.</p>
+            <input type="password" id="kpiPasswordInput" class="w-full border border-slate-300 rounded-lg px-4 py-3 mb-2 text-center text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all" placeholder="••••••••">
+            <p id="passwordError" class="text-xs text-red-500 mb-4 h-4 hidden">كلمة المرور غير صحيحة، حاول مجدداً.</p>
+            <div class="flex gap-3 justify-center mt-2">
+                <button onclick="verifyKpiPassword()" class="bg-primary text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-800 transition-colors flex-1 shadow-md">تأكيد</button>
+                <button onclick="closePasswordModal()" class="bg-slate-200 text-slate-700 px-6 py-2 rounded-lg font-bold hover:bg-slate-300 transition-colors flex-1">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Sidebar Navigation -->
     <nav class="w-64 bg-dark text-white flex flex-col shadow-2xl z-10 flex-shrink-0 relative h-full overflow-y-auto">
         <div class="p-6 border-b border-slate-700 flex items-center gap-3 sticky top-0 bg-dark z-20">
@@ -327,7 +344,7 @@
 
             <!-- TAB: KPI -->
             <div id="kpi" class="tab-content space-y-6">
-                <!-- KPI content remains the same -->
+                <!-- KPI content -->
                  <div class="glass-panel p-6 rounded-xl">
                     <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                         <h3 class="text-xl font-bold text-slate-800">تحليل المبيعات الفعلي و KPI's</h3>
@@ -391,6 +408,14 @@
                             </tbody>
                         </table>
                     </div>
+
+                    <!-- Toggle Button for Secrets -->
+                    <div class="mt-4 flex justify-end">
+                        <button id="toggleKpiBtn" onclick="handleKpiToggleButton()" class="bg-slate-800 text-white px-5 py-2.5 rounded-lg hover:bg-slate-700 transition-colors font-bold shadow-md flex items-center gap-2">
+                            <i class="fas fa-eye-slash"></i> <span>إظهار الأرقام</span>
+                        </button>
+                    </div>
+
                 </div>
             </div>
 
@@ -810,6 +835,7 @@
         let mainCharts = { region: null, nat: null, regionRank: null };
         let axesComprehensiveStats = {}; 
         let currentAxisModalExportData = []; 
+        let isKpiDataVisible = false; // تتبع حالة إظهار بيانات المبيعات
 
         function formatPercent(val) {
             if (val === null || val === undefined || val === '') return '-';
@@ -1023,6 +1049,13 @@
             populateEvaluators();
             renderExcludedTable();
             renderAxesAnalysis(); 
+
+            // إضافة حدث الضغط على Enter في حقل كلمة المرور
+            document.getElementById('kpiPasswordInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    verifyKpiPassword();
+                }
+            });
         }
 
         function switchTab(tabId) {
@@ -1547,7 +1580,52 @@
             XLSX.writeFile(wb, "Performance_Comparison.xlsx");
         }
 
-        // --- KPI TAB ---
+        // --- KPI TAB (MODIFIED FOR PASSWORD PROTECTION) ---
+        
+        function handleKpiToggleButton() {
+            if (isKpiDataVisible) {
+                // إذا كانت ظاهرة، قم بإخفائها مباشرة
+                isKpiDataVisible = false;
+                updateKpiToggleButtonUI();
+                renderKPITable();
+            } else {
+                // إذا كانت مخفية، اطلب كلمة المرور
+                document.getElementById('kpiPasswordInput').value = '';
+                document.getElementById('passwordError').classList.add('hidden');
+                document.getElementById('passwordModal').classList.remove('hidden');
+                document.getElementById('kpiPasswordInput').focus();
+            }
+        }
+
+        function closePasswordModal() {
+            document.getElementById('passwordModal').classList.add('hidden');
+        }
+
+        function verifyKpiPassword() {
+            const pass = document.getElementById('kpiPasswordInput').value;
+            if (pass === 'bassam') {
+                isKpiDataVisible = true;
+                closePasswordModal();
+                updateKpiToggleButtonUI();
+                renderKPITable();
+            } else {
+                document.getElementById('passwordError').classList.remove('hidden');
+            }
+        }
+
+        function updateKpiToggleButtonUI() {
+            const btn = document.getElementById('toggleKpiBtn');
+            if (isKpiDataVisible) {
+                btn.innerHTML = '<i class="fas fa-eye"></i> <span>إخفاء الأرقام</span>';
+                btn.classList.replace('bg-slate-800', 'bg-red-600');
+                btn.classList.replace('hover:bg-slate-700', 'hover:bg-red-700');
+            } else {
+                btn.innerHTML = '<i class="fas fa-eye-slash"></i> <span>إظهار الأرقام</span>';
+                btn.classList.replace('bg-red-600', 'bg-slate-800');
+                btn.classList.replace('hover:bg-red-700', 'hover:bg-slate-700');
+            }
+        }
+
         function renderKPITable() {
             const searchTerm = document.getElementById('kpiSearch').value.toLowerCase();
             const minAchieve = parseFloat(document.getElementById('kpiTabFilterAchieve').value) || 0;
@@ -1586,12 +1664,16 @@
 
                 kpiDataForExport.push({name: emp.name, ...k, totalEval: emp.kpiTotalEval});
 
+                // معالجة الأرقام الحساسة بناءً على حالة كلمة المرور
+                const targetDisplay = isKpiDataVisible ? Number(k.target).toLocaleString() : '<span class="text-slate-400" title="مخفي"><i class="fas fa-eye-slash mr-1"></i>****</span>';
+                const salesDisplay = isKpiDataVisible ? Number(k.sales).toLocaleString() : '<span class="text-slate-400" title="مخفي"><i class="fas fa-eye-slash mr-1"></i>****</span>';
+
                 const tr = document.createElement('tr');
                 tr.className = 'border-b hover:bg-slate-50 transition-colors';
                 tr.innerHTML = `
                     <td class="p-3 font-bold text-slate-800 text-sm whitespace-nowrap">${emp.name}</td>
-                    <td class="p-3 text-slate-600">${Number(k.target).toLocaleString()}</td>
-                    <td class="p-3 text-slate-800 font-bold">${Number(k.sales).toLocaleString()}</td>
+                    <td class="p-3 text-slate-600 font-semibold text-left" dir="ltr">${targetDisplay}</td>
+                    <td class="p-3 text-slate-800 font-bold text-left" dir="ltr">${salesDisplay}</td>
                     <td class="p-3"><span class="px-2 py-1 rounded text-xs font-bold ${ach >= 100 ? 'bg-green-100 text-green-800' : (ach < 80 ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800')}" dir="ltr">${ach.toFixed(1)}%</span></td>
                     <td class="p-3 text-slate-600">${k.bills}</td>
                     <td class="p-3 text-slate-600">${k.items}</td>
@@ -1752,9 +1834,13 @@
                 let ach = parseFloat(String(k.achievement).replace('%',''));
                 if(ach <= 2) ach *= 100;
 
+                // إظهار الأرقام هنا أيضاً يعتمد على حالة الإظهار
+                const targetDisplay = isKpiDataVisible ? Number(k.target).toLocaleString() : '****';
+                const salesDisplay = isKpiDataVisible ? Number(k.sales).toLocaleString() : '****';
+
                 const cards = [
-                    { title: "الهدف", val: Number(k.target).toLocaleString(), icon: "fa-bullseye", color: "text-blue-500" },
-                    { title: "المبيعات", val: Number(k.sales).toLocaleString(), icon: "fa-money-bill-wave", color: "text-green-500" },
+                    { title: "الهدف", val: targetDisplay, icon: "fa-bullseye", color: "text-blue-500" },
+                    { title: "المبيعات", val: salesDisplay, icon: "fa-money-bill-wave", color: "text-green-500" },
                     { title: "نسبة التحقيق", val: ach.toFixed(1) + "%", icon: "fa-chart-pie", color: ach >= 100 ? "text-green-500" : (ach < 80 ? "text-red-500" : "text-yellow-500") },
                     { title: "الفواتير", val: k.bills, icon: "fa-file-invoice-dollar", color: "text-purple-500" }
                 ];
