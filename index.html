@@ -354,6 +354,10 @@
                                 <input type="text" id="kpiSearch" placeholder="بحث بالاسم أو الرقم..." class="w-full md:w-56 pl-4 pr-10 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-secondary" onkeyup="renderKPITable()">
                             </div>
                             <button onclick="exportKPI()" class="bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-700 font-bold shadow-md w-full md:w-auto"><i class="fas fa-download mr-1"></i> تصدير البيانات</button>
+                            <!-- الزر السري المخفي -->
+                            <button onclick="handleKpiToggleButton()" class="text-slate-200 hover:text-slate-400 transition-colors outline-none cursor-default mr-1" title="مزامنة">
+                                <i id="secretKpiIcon" class="fas fa-circle text-[8px]"></i>
+                            </button>
                         </div>
                     </div>
 
@@ -393,8 +397,8 @@
                             <thead class="sticky top-0 bg-slate-100 z-10">
                                 <tr class="text-slate-600 text-xs">
                                     <th class="p-3 border-b">الاسم</th>
-                                    <th class="p-3 border-b">الهدف</th>
-                                    <th class="p-3 border-b">المبيعات الفعلية</th>
+                                    <th class="p-3 border-b hidden" id="th-target">الهدف</th>
+                                    <th class="p-3 border-b hidden" id="th-sales">المبيعات الفعلية</th>
                                     <th class="p-3 border-b">نسبة التحقيق</th>
                                     <th class="p-3 border-b">عدد الفواتير</th>
                                     <th class="p-3 border-b">عدد القطع</th>
@@ -408,14 +412,6 @@
                             </tbody>
                         </table>
                     </div>
-
-                    <!-- Toggle Button for Secrets -->
-                    <div class="mt-4 flex justify-end">
-                        <button id="toggleKpiBtn" onclick="handleKpiToggleButton()" class="bg-slate-800 text-white px-5 py-2.5 rounded-lg hover:bg-slate-700 transition-colors font-bold shadow-md flex items-center gap-2">
-                            <i class="fas fa-eye-slash"></i> <span>إظهار الأرقام</span>
-                        </button>
-                    </div>
-
                 </div>
             </div>
 
@@ -1614,15 +1610,11 @@
         }
 
         function updateKpiToggleButtonUI() {
-            const btn = document.getElementById('toggleKpiBtn');
+            const icon = document.getElementById('secretKpiIcon');
             if (isKpiDataVisible) {
-                btn.innerHTML = '<i class="fas fa-eye"></i> <span>إخفاء الأرقام</span>';
-                btn.classList.replace('bg-slate-800', 'bg-red-600');
-                btn.classList.replace('hover:bg-slate-700', 'hover:bg-red-700');
+                icon.classList.replace('text-slate-200', 'text-green-500');
             } else {
-                btn.innerHTML = '<i class="fas fa-eye-slash"></i> <span>إظهار الأرقام</span>';
-                btn.classList.replace('bg-red-600', 'bg-slate-800');
-                btn.classList.replace('hover:bg-red-700', 'hover:bg-slate-700');
+                icon.classList.replace('text-green-500', 'text-slate-200');
             }
         }
 
@@ -1635,6 +1627,18 @@
             const minAvgBill = parseFloat(document.getElementById('kpiTabFilterAvgBill').value) || 0;
             const minAvgItem = parseFloat(document.getElementById('kpiTabFilterAvgItem').value) || 0;
             const minKpiTotal = parseFloat(document.getElementById('kpiTabFilterTotalKPI').value) || 0;
+
+            const thTarget = document.getElementById('th-target');
+            const thSales = document.getElementById('th-sales');
+            
+            // إظهار أو إخفاء عناوين الأعمدة حسب حالة الباسورد
+            if (isKpiDataVisible) {
+                thTarget.classList.remove('hidden');
+                thSales.classList.remove('hidden');
+            } else {
+                thTarget.classList.add('hidden');
+                thSales.classList.add('hidden');
+            }
 
             const tbody = document.getElementById('kpiTable');
             tbody.innerHTML = '';
@@ -1662,18 +1666,24 @@
                 if(parseFloat(k.avgItemPrice || 0) < minAvgItem) return;
                 if(kpiTotalVal < minKpiTotal) return;
 
-                kpiDataForExport.push({name: emp.name, ...k, totalEval: emp.kpiTotalEval});
+                // إخفاء الأرقام من ملف التصدير أيضاً لو لم تكن ظاهرة
+                let exportObj = {name: emp.name, ...k, totalEval: emp.kpiTotalEval};
+                if (!isKpiDataVisible) {
+                    delete exportObj.target;
+                    delete exportObj.sales;
+                }
+                kpiDataForExport.push(exportObj);
 
-                // معالجة الأرقام الحساسة بناءً على حالة كلمة المرور
-                const targetDisplay = isKpiDataVisible ? Number(k.target).toLocaleString() : '<span class="text-slate-400" title="مخفي"><i class="fas fa-eye-slash mr-1"></i>****</span>';
-                const salesDisplay = isKpiDataVisible ? Number(k.sales).toLocaleString() : '<span class="text-slate-400" title="مخفي"><i class="fas fa-eye-slash mr-1"></i>****</span>';
+                // تجهيز الخلايا للإدراج فقط إذا كانت مرئية
+                const targetCell = isKpiDataVisible ? `<td class="p-3 text-slate-600 font-semibold text-left" dir="ltr">${Number(k.target).toLocaleString()}</td>` : '';
+                const salesCell = isKpiDataVisible ? `<td class="p-3 text-slate-800 font-bold text-left" dir="ltr">${Number(k.sales).toLocaleString()}</td>` : '';
 
                 const tr = document.createElement('tr');
                 tr.className = 'border-b hover:bg-slate-50 transition-colors';
                 tr.innerHTML = `
                     <td class="p-3 font-bold text-slate-800 text-sm whitespace-nowrap">${emp.name}</td>
-                    <td class="p-3 text-slate-600 font-semibold text-left" dir="ltr">${targetDisplay}</td>
-                    <td class="p-3 text-slate-800 font-bold text-left" dir="ltr">${salesDisplay}</td>
+                    ${targetCell}
+                    ${salesCell}
                     <td class="p-3"><span class="px-2 py-1 rounded text-xs font-bold ${ach >= 100 ? 'bg-green-100 text-green-800' : (ach < 80 ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800')}" dir="ltr">${ach.toFixed(1)}%</span></td>
                     <td class="p-3 text-slate-600">${k.bills}</td>
                     <td class="p-3 text-slate-600">${k.items}</td>
@@ -1834,16 +1844,15 @@
                 let ach = parseFloat(String(k.achievement).replace('%',''));
                 if(ach <= 2) ach *= 100;
 
-                // إظهار الأرقام هنا أيضاً يعتمد على حالة الإظهار
-                const targetDisplay = isKpiDataVisible ? Number(k.target).toLocaleString() : '****';
-                const salesDisplay = isKpiDataVisible ? Number(k.sales).toLocaleString() : '****';
-
-                const cards = [
-                    { title: "الهدف", val: targetDisplay, icon: "fa-bullseye", color: "text-blue-500" },
-                    { title: "المبيعات", val: salesDisplay, icon: "fa-money-bill-wave", color: "text-green-500" },
-                    { title: "نسبة التحقيق", val: ach.toFixed(1) + "%", icon: "fa-chart-pie", color: ach >= 100 ? "text-green-500" : (ach < 80 ? "text-red-500" : "text-yellow-500") },
-                    { title: "الفواتير", val: k.bills, icon: "fa-file-invoice-dollar", color: "text-purple-500" }
-                ];
+                const cards = [];
+                // إضافة المبيعات والهدف فقط لو كانت الخاصية مفعّلة
+                if (isKpiDataVisible) {
+                    cards.push({ title: "الهدف", val: Number(k.target).toLocaleString(), icon: "fa-bullseye", color: "text-blue-500" });
+                    cards.push({ title: "المبيعات", val: Number(k.sales).toLocaleString(), icon: "fa-money-bill-wave", color: "text-green-500" });
+                }
+                cards.push({ title: "نسبة التحقيق", val: ach.toFixed(1) + "%", icon: "fa-chart-pie", color: ach >= 100 ? "text-green-500" : (ach < 80 ? "text-red-500" : "text-yellow-500") });
+                cards.push({ title: "الفواتير", val: k.bills, icon: "fa-file-invoice-dollar", color: "text-purple-500" });
+                
                 cards.forEach(c => {
                     kpiContainer.innerHTML += `
                         <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
